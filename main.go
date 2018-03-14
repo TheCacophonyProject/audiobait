@@ -12,8 +12,15 @@ import (
 	arg "github.com/alexflint/go-arg"
 )
 
+// version is populated at link time via goreleaser
+var version = "No version provided"
+
 type argSpec struct {
 	ConfigFile string `arg:"-c,--config" help:"path to configuration file"`
+}
+
+func (argSpec) Version() string {
+	return version
 }
 
 func procArgs() argSpec {
@@ -34,6 +41,7 @@ func runMain() error {
 	log.SetFlags(0) // Removes default timestamp flag
 
 	args := procArgs()
+	log.Printf("version %s", version)
 	conf, err := ParseConfigFile(args.ConfigFile)
 	if err != nil {
 		return err
