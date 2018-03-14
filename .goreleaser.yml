@@ -10,34 +10,25 @@ builds:
   goarch:
   - arm
   goarm:
-  - "7"
+  - "6"
   main: .
   ldflags: -s -w -X main.version={{.Version}}
   binary: audiobait
 checksum:
   name_template: '{{ .ProjectName }}_{{ .Version }}_checksums.txt'
-archive:
-  name_template: '{{ .ProjectName }}_{{ .Version }}'
-  format: tar.gz
-  files:
-  - audiobait.service
-  - audiobait.yaml
 dist: dist
-
-# This won't work until we get a small fix to GoReleaser merged.
-# The debs that GoReleaser produces for arm7 use the wrong architecture.
-# nfpm:
-#   vendor: The Cacophony Project
-#   homepage: http://cacophony.org.nz/
-#   maintainer: Menno Finlay-Smits <menno@cacophony.org.nz>
-#   description: Play audio lures
-#   license: GPL v3.0
-#   formats:
-#     - deb
-#   dependencies:
-#     - sox
-#   bindir: /usr/bin
-#   files:
-#     "audiobait.service": "/etc/systemd/system/audiobait.service"
-#   config_files:
-#     "audiobait.yaml": "/etc/audiobait.yaml"
+nfpm:
+  vendor: The Cacophony Project
+  homepage: http://cacophony.org.nz/
+  maintainer: Menno Finlay-Smits <menno@cacophony.org.nz>
+  description: Play audio lures
+  license: GPL v3.0
+  formats:
+    - deb
+  dependencies:
+    - sox
+  bindir: /usr/bin
+  files:
+    "audiobait.service": "/etc/systemd/system/audiobait.service"
+  config_files:
+    "audiobait.yaml": "/etc/audiobait.yaml"

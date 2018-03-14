@@ -3,9 +3,7 @@ Description=Cacophony Project Audio Lure Player
 After=multi-user.target network.target
 
 [Service]
-ExecStart=/usr/local/bin/audiobait
-
-# Restart every 5s on failure and never give up.
+ExecStart=/usr/bin/audiobait
 Restart=on-failure
 RestartSec=5s
 
