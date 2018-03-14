@@ -1,9 +1,12 @@
 project_name: audiobait
+dist: dist
+
 release:
   github:
     owner: TheCacophonyProject
     name: audiobait
   name_template: '{{.Tag}}'
+
 builds:
 - goos:
   - linux
@@ -14,21 +17,21 @@ builds:
   main: .
   ldflags: -s -w -X main.version={{.Version}}
   binary: audiobait
+
 checksum:
   name_template: '{{ .ProjectName }}_{{ .Version }}_checksums.txt'
-dist: dist
+
 nfpm:
   vendor: The Cacophony Project
   homepage: http://cacophony.org.nz/
   maintainer: Menno Finlay-Smits <menno@cacophony.org.nz>
-  description: Play audio lures
+  description: Play audio lures on a schedule
   license: GPL v3.0
+  name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Arch }}"
   formats:
     - deb
   dependencies:
     - sox
   bindir: /usr/bin
   files:
-    "audiobait.service": "/etc/systemd/system/audiobait.service"
-  config_files:
-    "audiobait.yaml": "/etc/audiobait.yaml"
+    "_release/audiobait.service": "/etc/systemd/system/audiobait.service"
