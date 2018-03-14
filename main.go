@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
@@ -38,6 +39,11 @@ func runMain() error {
 		return err
 	}
 
+	log.Printf("setting card %d %q to 100%%", conf.Card, conf.VolumeControl)
+	if err := setVolume(conf.Card, conf.VolumeControl, 100); err != nil {
+		return err
+	}
+
 	audioFileName := filepath.Join(conf.AudioDir, conf.Play.File)
 	log.Printf("using " + audioFileName)
 
@@ -51,7 +57,7 @@ func runMain() error {
 		if toWindow == time.Duration(0) {
 			log.Print("starting burst")
 			for count := 0; count < conf.Play.BurstRepeat; count++ {
-				err := play(audioFileName)
+				err := play(conf.Card, audioFileName)
 				if err != nil {
 					return err
 				}
@@ -66,11 +72,27 @@ func runMain() error {
 	}
 }
 
-func play(filename string) error {
+func play(card int, filename string) error {
 	cmd := exec.Command("play", "-q", filename)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("AUDIODEV=hw:%d", card))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("play failed: %v\noutput:\n%s", err, out)
+	}
+	return nil
+}
+
+func setVolume(card int, controlName string, percent int) error {
+	cmd := exec.Command(
+		"amixer",
+		"-c", fmt.Sprint(card),
+		"sset",
+		controlName,
+		fmt.Sprintf("%d%%", percent),
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("volume set failed: %v\noutput:\n%s", err, out)
 	}
 	return nil
 }

@@ -9,10 +9,12 @@ import (
 )
 
 type Config struct {
-	AudioDir    string
-	WindowStart time.Time
-	WindowEnd   time.Time
-	Play        PlayConfig
+	AudioDir      string
+	Card          int
+	VolumeControl string
+	WindowStart   time.Time
+	WindowEnd     time.Time
+	Play          PlayConfig
 }
 
 type PlayConfig struct {
@@ -23,10 +25,12 @@ type PlayConfig struct {
 }
 
 type rawConfig struct {
-	AudioDir    string        `yaml:"audio-directory"`
-	WindowStart string        `yaml:"window-start"`
-	WindowEnd   string        `yaml:"window-end"`
-	Play        rawPlayConfig `yaml:"play"`
+	AudioDir      string        `yaml:"audio-directory"`
+	Card          int           `yaml:"card"`
+	VolumeControl string        `yaml:"volume-control"`
+	WindowStart   string        `yaml:"window-start"`
+	WindowEnd     string        `yaml:"window-end"`
+	Play          rawPlayConfig `yaml:"play"`
 }
 
 type rawPlayConfig struct {
@@ -54,7 +58,9 @@ func ParseConfig(buf []byte) (*Config, error) {
 	}
 
 	conf := &Config{
-		AudioDir: raw.AudioDir,
+		AudioDir:      raw.AudioDir,
+		Card:          raw.Card,
+		VolumeControl: raw.VolumeControl,
 		Play: PlayConfig{
 			File:        raw.Play.File,
 			BurstRepeat: raw.Play.BurstRepeat,
