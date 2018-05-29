@@ -17,6 +17,7 @@ var version = "No version provided"
 
 type argSpec struct {
 	ConfigFile string `arg:"-c,--config" help:"path to configuration file"`
+	Timestamps bool   `arg:"-t,--timestamps" help:"include timestamps in log output"`
 }
 
 func (argSpec) Version() string {
@@ -38,7 +39,9 @@ func main() {
 }
 
 func runMain() error {
-	log.SetFlags(0) // Removes default timestamp flag
+	if !args.Timestamps {
+		log.SetFlags(0) // Removes default timestamp flag
+	}
 
 	args := procArgs()
 	log.Printf("version %s", version)
