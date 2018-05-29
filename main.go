@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/TheCacophonyProject/window"
 	arg "github.com/alexflint/go-arg"
+	"github.com/godbus/dbus"
 )
 
 // version is populated at link time via goreleaser
@@ -17,6 +19,7 @@ var version = "No version provided"
 
 type argSpec struct {
 	ConfigFile string `arg:"-c,--config" help:"path to configuration file"`
+	Timestamps bool   `arg:"-t,--timestamps" help:"include timestamps in log output"`
 }
 
 func (argSpec) Version() string {
@@ -38,9 +41,11 @@ func main() {
 }
 
 func runMain() error {
-	log.SetFlags(0) // Removes default timestamp flag
-
 	args := procArgs()
+	if !args.Timestamps {
+		log.SetFlags(0) // Removes default timestamp flag
+	}
+
 	log.Printf("version %s", version)
 	conf, err := ParseConfigFile(args.ConfigFile)
 	if err != nil {
@@ -65,9 +70,13 @@ func runMain() error {
 		if toWindow == time.Duration(0) {
 			log.Print("starting burst")
 			for count := 0; count < conf.Play.BurstRepeat; count++ {
+				now := time.Now()
 				err := play(conf.Card, audioFileName)
 				if err != nil {
 					return err
+				}
+				if err := queueEvent(now, audioFileName); err != nil {
+					log.Printf("failed to queue event: %v", err)
 				}
 				time.Sleep(conf.Play.IntraSleep)
 			}
@@ -78,16 +87,6 @@ func runMain() error {
 			time.Sleep(toWindow)
 		}
 	}
-}
-
-func play(card int, filename string) error {
-	cmd := exec.Command("play", "-q", filename)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("AUDIODEV=hw:%d", card))
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("play failed: %v\noutput:\n%s", err, out)
-	}
-	return nil
 }
 
 func setVolume(card int, controlName string, percent int) error {
@@ -103,4 +102,38 @@ func setVolume(card int, controlName string, percent int) error {
 		return fmt.Errorf("volume set failed: %v\noutput:\n%s", err, out)
 	}
 	return nil
+}
+
+func play(card int, filename string) error {
+	cmd := exec.Command("play", "-q", filename)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("AUDIODEV=hw:%d", card))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("play failed: %v\noutput:\n%s", err, out)
+	}
+	return nil
+}
+
+func queueEvent(ts time.Time, filename string) error {
+	eventDetails := map[string]interface{}{
+		"description": map[string]interface{}{
+			"type": "audioBait",
+			"details": map[string]interface{}{
+				"filename": filepath.Base(filename),
+				"volume":   100,
+			},
+		},
+	}
+	detailsJSON, err := json.Marshal(&eventDetails)
+	if err != nil {
+		return err
+	}
+
+	conn, err := dbus.SystemBus()
+	if err != nil {
+		return err
+	}
+	obj := conn.Object("org.cacophony.Events", "/org/cacophony/Events")
+	call := obj.Call("org.cacophony.Events.Queue", 0, detailsJSON, ts.UnixNano())
+	return call.Err
 }
