@@ -1,3 +1,5 @@
+### Sample audiobait configuration file
+
 audio-directory: /var/lib/audiobait
 
 # Sound card details
