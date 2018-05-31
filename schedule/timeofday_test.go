@@ -38,7 +38,7 @@ func parseJsonShouldFail(t *testing.T, time string) {
 	if _, err := parseJsonTime(time) ; err == nil {
 		t.Errorf("Should not have parsed time correctly: %s", time)
 	} else {
-		fmt.Println("Time failed to parse as expected.")
+		fmt.Println("Invalid time didn't parse (this is the expected result).")
 	}
 }
 
