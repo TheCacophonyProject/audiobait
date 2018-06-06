@@ -30,23 +30,23 @@ func (t *ActualTimeManager) Wait(duration time.Duration) {
 type SchedulePlayer struct {
 	player AudioPlayer
 	time TimeManager
+	allSounds map[int]string
 }
 
-func NewSchedulePlayer(audioPlayer AudioPlayer) *SchedulePlayer {
-	return NewSchedulePlayerWithTimeManager(audioPlayer, new(ActualTimeManager))
+func NewSchedulePlayer(audioPlayer AudioPlayer,  allSoundsMap map[int]string) *SchedulePlayer {
+	return NewSchedulePlayerWithTimeManager(audioPlayer, new(ActualTimeManager), allSoundsMap)
 }
 
-func NewSchedulePlayerWithTimeManager(audioPlayer AudioPlayer, timeManager TimeManager) *SchedulePlayer {
-  return &SchedulePlayer{ player: audioPlayer, time: timeManager}
+func NewSchedulePlayerWithTimeManager(audioPlayer AudioPlayer, timeManager TimeManager, allSoundsMap map[int]string) *SchedulePlayer {
+  return &SchedulePlayer{ player: audioPlayer, time: timeManager, allSounds: allSoundsMap}
 }
 
-func findNextCombo(combos []Combo) int {
+func (sp SchedulePlayer) findNextCombo(combos []Combo) int {
 	soonest := 0;
 	soonestTime := time.Duration(24) * time.Hour
 
 	for count := 0; count < len(combos); count++ {
-		combo := combos[count]
-		timeUntil := window.New(combo.From.Time, combo.Until.Time).Until()
+		timeUntil := sp.createWindow(combos[count]).Until()
 
 		if (timeUntil < soonestTime) {
 			soonest = count;
@@ -57,49 +57,74 @@ func findNextCombo(combos []Combo) int {
 	return soonest
 }
 
-func (sp SchedulePlayer) PlaySchedule(combos []Combo) {
+func (sp SchedulePlayer) PlayTodaysSchedule(combos []Combo) {
 	numberCombos := len(combos)
-  count := findNextCombo(combos)
-	iterations := 0
+	tomorrowStart := sp.nextDayStart()
+	count := sp.findNextCombo(combos)
 
-	for count < numberCombos && iterations < 6 {
+	nextComboStart := sp.time.Now().Add(sp.createWindow(combos[count]).Until())
+
+	for nextComboStart.Before(tomorrowStart) {
 		sp.PlayCombo(combos[count])
 		count = (count + 1) % numberCombos
-		iterations++
+		nextComboStart = sp.time.Now().Add(sp.createWindow(combos[count]).Until())
 	}
 }
 
-func (sp SchedulePlayer) PlayCombo(combo Combo) {
-	win := window.New(combo.From.Time, combo.Until.Time)
-	win.Now = sp.time.Now
-	every := time.Duration(combo.Every) * time.Second
-	finished := false
+func (sp SchedulePlayer) nextDayStart() time.Time {
+	// Days start at 12 midday.
+	tTime := sp.time.Now()
 
-	waitTime := win.Until()
-	if (waitTime > time.Duration(0)) {
-		log.Printf("sleeping until next window (%s)", toWindow)
+	// If it is night time then the next day starts tomorrow
+	if (tTime.Hour() >= 12) {
+		tTime = tTime.Add(14 * time.Hour)
 	}
 
-	for !finished {
-		// play sounds
-		sp.time.Wait(waitTime)
-		sp.playSounds(combo)
+	return time.Date(tTime.Year(), tTime.Month(), tTime.Day(), 12, 00, 0, 0, tTime.Location())
+}
 
-		waitTime := win.UntilNextInterval(every)
-		if waitTime > time.Duration(-1) {
+
+func (sp SchedulePlayer) PlayCombo(combo Combo) bool {
+	win := sp.createWindow(combo)
+	soundChooser := NewSoundChooser(sp.allSounds)
+	finished := false
+
+	toWindow := win.Until()
+	if (toWindow > time.Duration(0)) {
+			log.Printf("sleeping until next window (%s)", toWindow)
+			sp.time.Wait(toWindow)
+			sp.playSounds(combo, soundChooser)
+	}
+
+	every := time.Duration(combo.Every) * time.Second
+
+	for !finished {
+		nextBurstSleep := win.UntilNextInterval(every)
+		if nextBurstSleep > time.Duration(-1) {
 			log.Print("ended burst, sleeping until next burst")
+			sp.time.Wait(nextBurstSleep)
+			sp.playSounds(combo, soundChooser)
 		} else {
 			log.Print("Played last burst, sleeping until end of window")
 			finished = true
 			sp.time.Wait(win.UntilEnd())
 		}
 	}
+
+	return true;
 }
 
-func (sp SchedulePlayer) playSounds(combo Combo) {
+func (sp SchedulePlayer) createWindow(combo Combo) *window.Window {
+	win := window.New(combo.From.Time, combo.Until.Time)
+	win.Now = sp.time.Now
+	return win
+}
+
+func (sp SchedulePlayer) playSounds(combo Combo, chooser *SoundChooser) {
 	for count := 0; count < len(combo.Sounds); count++ {
 		log.Print("Starting burst")
 		sp.time.Wait(time.Duration(combo.Waits[count]) * time.Second);
-		sp.player.Play(combo.Sounds[count], combo.Volumes[count]);
+		_, soundFilename := chooser.ChooseSound(combo.Sounds[count])
+		sp.player.Play(soundFilename, combo.Volumes[count]);
 	}
 }
