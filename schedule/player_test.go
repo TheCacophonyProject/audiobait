@@ -33,7 +33,7 @@ func (t *TestTimeManagerAndPlayer) Now() time.Time {
 }
 
 func (t *TestTimeManagerAndPlayer) Wait(duration time.Duration) {
-	t.NowTime = t.NowTime.Add(duration)
+	t.NowTime = t.NowTime.Add(duration).Add(1000 * time.Nanosecond)
 }
 
 func registerPlaySound(playTime, audioFileName string) string {
@@ -63,15 +63,15 @@ func TestPlayingComboStartDuring(t *testing.T) {
 }
 
 func TestPlayingComboStartBefore(t *testing.T) {
-	combo := createCombo("12:01", "13:03", 30, "beep")
+	combo := createCombo("12:01", "13:03", 30, "howl")
 
 	schedulePlayer, testRecorder := createPlayer("11:21")
 	schedulePlayer.PlayCombo(combo)
 
 	expectedPlayTimes := []string{
-		registerPlaySound("12:01:00", "beep"),
-		registerPlaySound("12:31:00", "beep"),
-		registerPlaySound("13:01:00", "beep"),
+		registerPlaySound("12:01:00", "howl"),
+		registerPlaySound("12:31:00", "howl"),
+		registerPlaySound("13:01:00", "howl"),
 	}
 
 	assert.Equal(t, testRecorder.PlayTimes, expectedPlayTimes)
@@ -79,15 +79,15 @@ func TestPlayingComboStartBefore(t *testing.T) {
 
 func TestPlayTodaysScheduleWithComboOverMiddayShouldPlayToEndOfComboThenStop(t *testing.T) {
 	combos := []Combo{createCombo("19:00", "19:25", 30, "roar"),
-		createCombo("11:12", "12:40", 60, "beep")}
+		createCombo("11:12", "12:40", 60, "cry")}
 
 	schedulePlayer, testRecorder := createPlayer("18:30")
 	schedulePlayer.PlayTodaysSchedule(combos)
 
 	expectedPlayTimes := []string{
 		registerPlaySound("19:00:00", "roar"),
-		registerPlaySound("11:12:00", "beep"),
-		registerPlaySound("12:12:00", "beep"),
+		registerPlaySound("11:12:00", "cry"),
+		registerPlaySound("12:12:00", "cry"),
 	}
 
 	assert.Equal(t, testRecorder.PlayTimes, expectedPlayTimes)
@@ -110,16 +110,25 @@ func TestPlayTodaysScheduleShouldLoopBackToStartOfCombosIfRequired(t *testing.T)
 }
 
 
-func TestPlayCombos(t *testing.T) {
-	combos := []Combo{createCombo("12:03", "13:08", 30, "roar"),
-		createCombo("21:12", "02:15", 45, "tweet"),
-		createCombo("03:12", "06:12", 60, "squeal")}
-	testPlayerAndTimer := new(TestTimeManagerAndPlayer)
-	testPlayerAndTimer.NowTime = NewTimeOfDay("12:13").Time
-	scheduleplayer := NewSchedulePlayerWithTimeManager(testPlayerAndTimer, testPlayerAndTimer, soundFiles)
+func TestPlayComboWithMultipleSoundsIncludingSame(t *testing.T) {
+	combos := []Combo{createCombo("18:00", "18:55", 30, "roar")}
 
+	// addAnotherSound(&combos[0], 1, "same")
+	addAnotherSound(&combos[0], 3, "same")
+	addAnotherSound(&combos[0], 2, "meow")
 
-	scheduleplayer.PlayTodaysSchedule(combos)
+	schedulePlayer, testRecorder := createPlayer("17:59")
+	schedulePlayer.PlayTodaysSchedule(combos)
+
+	expectedPlayTimes := []string{
+		registerPlaySound("18:00:00", "roar"),
+		registerPlaySound("18:00:03", "roar"),
+		registerPlaySound("18:00:05", "meow"),
+		registerPlaySound("18:30:00", "roar"),
+		registerPlaySound("18:30:03", "roar"),
+		registerPlaySound("18:30:05", "meow"),
+	}
+	assert.Equal(t, expectedPlayTimes, testRecorder.PlayTimes, )
 }
 
 
@@ -132,10 +141,10 @@ func TestFindNextCombo(t *testing.T) {
 }
 
 
-func createCombo(timeStart, timeEnd string, everySeconds int, soundName string) Combo {
+func createCombo(timeStart, timeEnd string, everyMinutes int, soundName string) Combo {
 	return Combo{
 		From: *NewTimeOfDay(timeStart),
-		Every: everySeconds * 60,
+		Every: everyMinutes * 60,
 		Until: *NewTimeOfDay(timeEnd),
 		Waits: []int{0},
 		Volumes:[]int{10},
@@ -145,7 +154,7 @@ func createCombo(timeStart, timeEnd string, everySeconds int, soundName string) 
 
 func addAnotherSound(combo *Combo, wait int, sound string) *Combo {
 	combo.Waits = append(combo.Waits, wait)
-	combo.Volumes	= append(combo.Volumes, 2)
+	combo.Volumes	= append(combo.Volumes, 400)
 	combo.Sounds = append(combo.Sounds, makeSoundNameForSchedule(sound))
 	return combo
 }

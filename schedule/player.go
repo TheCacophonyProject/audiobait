@@ -87,7 +87,6 @@ func (sp SchedulePlayer) nextDayStart() time.Time {
 func (sp SchedulePlayer) PlayCombo(combo Combo) bool {
 	win := sp.createWindow(combo)
 	soundChooser := NewSoundChooser(sp.allSounds)
-	finished := false
 
 	toWindow := win.Until()
 	if (toWindow > time.Duration(0)) {
@@ -98,7 +97,7 @@ func (sp SchedulePlayer) PlayCombo(combo Combo) bool {
 
 	every := time.Duration(combo.Every) * time.Second
 
-	for !finished {
+	for true {
 		nextBurstSleep := win.UntilNextInterval(every)
 		if nextBurstSleep > time.Duration(-1) {
 			log.Print("ended burst, sleeping until next burst")
@@ -106,8 +105,8 @@ func (sp SchedulePlayer) PlayCombo(combo Combo) bool {
 			sp.playSounds(combo, soundChooser)
 		} else {
 			log.Print("Played last burst, sleeping until end of window")
-			finished = true
 			sp.time.Wait(win.UntilEnd())
+			return true
 		}
 	}
 
