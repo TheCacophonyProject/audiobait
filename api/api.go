@@ -149,6 +149,9 @@ func (api *CacophonyAPI) GetFilesFromSchedule(schedule Schedule, fileFolder stri
 
 // GetFile will download a file from the files api and save to disk
 func (api *CacophonyAPI) GetFile(fileID int, path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	}
 	buf := new(bytes.Buffer)
 
 	req, err := http.NewRequest("GET", api.serverURL+"/api/v1/files/"+strconv.Itoa(fileID), buf)
