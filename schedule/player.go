@@ -3,6 +3,7 @@ package schedule
 import (
 	"time"
 	"log"
+	"fmt"
 
 	"github.com/TheCacophonyProject/window"
 )
@@ -57,7 +58,28 @@ func (sp SchedulePlayer) findNextCombo(combos []Combo) int {
 	return soonest
 }
 
-func (sp SchedulePlayer) PlayTodaysSchedule(combos []Combo) {
+func (sp SchedulePlayer) IsSoundPlayingDay(schedule Schedule) bool {
+	if (schedule.ControlNights <= 0) {
+		return true
+	}
+
+	cycleLength := schedule.PlayNights + schedule.ControlNights
+	todaysStart := sp.nextDayStart().Add(-24 * time.Hour)
+	dayOfCycle := todaysStart.Day() % cycleLength;
+
+	fmt.Print("Cycle day is ")
+	fmt.Print("day of Cycle")
+
+	return dayOfCycle < schedule.PlayNights
+}
+
+func (sp SchedulePlayer) PlayTodaysSchedule(schedule Schedule) {
+	if (sp.IsSoundPlayingDay(schedule)) {
+		sp.PlayTodaysCombos(schedule.Combos)
+	}
+}
+
+func (sp SchedulePlayer) PlayTodaysCombos(combos []Combo) {
 	numberCombos := len(combos)
 	tomorrowStart := sp.nextDayStart()
 	count := sp.findNextCombo(combos)

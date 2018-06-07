@@ -82,7 +82,7 @@ func TestPlayTodaysScheduleWithComboOverMiddayShouldPlayToEndOfComboThenStop(t *
 		createCombo("11:12", "12:40", 60, "cry")}
 
 	schedulePlayer, testRecorder := createPlayer("18:30")
-	schedulePlayer.PlayTodaysSchedule(combos)
+	schedulePlayer.PlayTodaysCombos(combos)
 
 	expectedPlayTimes := []string{
 		registerPlaySound("19:00:00", "roar"),
@@ -98,7 +98,7 @@ func TestPlayTodaysScheduleShouldLoopBackToStartOfCombosIfRequired(t *testing.T)
 		createCombo("21:12", "22:00", 60, "tweet")}
 
 	schedulePlayer, testRecorder := createPlayer("18:30")
-	schedulePlayer.PlayTodaysSchedule(combos)
+	schedulePlayer.PlayTodaysCombos(combos)
 
 	expectedPlayTimes := []string{
 		registerPlaySound("21:12:00", "tweet"),
@@ -107,6 +107,21 @@ func TestPlayTodaysScheduleShouldLoopBackToStartOfCombosIfRequired(t *testing.T)
 	}
 
 	assert.Equal(t, testRecorder.PlayTimes, expectedPlayTimes)
+}
+
+func TestScheduleWithZeroControlNightsAlwaysPlays(t *testing.T) {
+	schedule := Schedule{ControlNights: 0, PlayNights: 0}
+	schedulePlayer, _ := createPlayer("12:01")
+
+	assert.Equal(t, true, schedulePlayer.IsSoundPlayingDay(schedule))
+}
+
+
+func TestScheduleWithControlDaysOnlyPlaysOneEarlyDays(t *testing.T) {
+	schedule := Schedule{ControlNights: 5, PlayNights: 2}
+	schedulePlayer, _ := createPlayer("12:01")
+
+	assert.Equal(t, true, schedulePlayer.IsSoundPlayingDay(schedule))
 }
 
 
@@ -118,7 +133,7 @@ func TestPlayComboWithMultipleSoundsIncludingSame(t *testing.T) {
 	addAnotherSound(&combos[0], 2, "meow")
 
 	schedulePlayer, testRecorder := createPlayer("17:59")
-	schedulePlayer.PlayTodaysSchedule(combos)
+	schedulePlayer.PlayTodaysCombos(combos)
 
 	expectedPlayTimes := []string{
 		registerPlaySound("18:00:00", "roar"),
@@ -139,6 +154,7 @@ func TestFindNextCombo(t *testing.T) {
 	schedulePlayer, _ := createPlayer("12:13")
 	fmt.Print(combos[schedulePlayer.findNextCombo(combos)])
 }
+
 
 
 func createCombo(timeStart, timeEnd string, everyMinutes int, soundName string) Combo {
@@ -168,3 +184,4 @@ func makeSoundNameForSchedule(soundName string) string {
 	}
 	return scheduleIdentifier;
 }
+
