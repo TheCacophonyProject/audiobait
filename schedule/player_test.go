@@ -21,11 +21,12 @@ type TestTimeManagerAndPlayer struct {
 	PlayTimes []string
 }
 
-func (p *TestTimeManagerAndPlayer) Play(audioFileName string, _ int) {
+func (p *TestTimeManagerAndPlayer) Play(audioFileName string, _ int) error {
 	nowTimeAsString := fmt.Sprintf("%02d:%02d:%02d", p.NowTime.Hour(), p.NowTime.Minute(), p.NowTime.Second())
 	playingString := registerPlaySound(nowTimeAsString, audioFileName)
 	p.PlayTimes = append(p.PlayTimes, playingString)
 	fmt.Println(playingString)
+	return nil
 }
 
 func (t *TestTimeManagerAndPlayer) Now() time.Time {

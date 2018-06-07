@@ -10,7 +10,7 @@ import (
 
 
 type AudioPlayer interface {
-	Play(audioFileName string, volume int)
+	Play(audioFileName string, volume int) error
 }
 
 type TimeManager interface {
@@ -144,8 +144,10 @@ func (sp SchedulePlayer) createWindow(combo Combo) *window.Window {
 func (sp SchedulePlayer) playSounds(combo Combo, chooser *SoundChooser) {
 	for count := 0; count < len(combo.Sounds); count++ {
 		log.Print("Starting burst")
-		sp.time.Wait(time.Duration(combo.Waits[count]) * time.Second);
+		sp.time.Wait(time.Duration(combo.Waits[count]) * time.Second)
 		_, soundFilename := chooser.ChooseSound(combo.Sounds[count])
-		sp.player.Play(soundFilename, combo.Volumes[count]);
+		if err := sp.player.Play(soundFilename, combo.Volumes[count]); err != nil {
+			log.Printf("Play failed: %v", err)
+		}
 	}
 }

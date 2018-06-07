@@ -1,17 +1,12 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"log"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"time"
+	"fmt"
 
-	"github.com/TheCacophonyProject/window"
+	"github.com/TheCacophonyProject/audiobait/schedule"
 	arg "github.com/alexflint/go-arg"
-	"github.com/godbus/dbus"
+
 )
 
 // version is populated at link time via goreleaser
@@ -52,88 +47,21 @@ func runMain() error {
 		return err
 	}
 
-	log.Printf("setting card %d %q to 100%%", conf.Card, conf.VolumeControl)
-	if err := setVolume(conf.Card, conf.VolumeControl, 100); err != nil {
-		return err
+	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
+	player := schedule.NewSchedulePlayer(soundCard, map[int]string{101: "/var/lib/audiobait/A-Tone-His_Self-1266414414.wav"})
+
+	fmt.Println("Playing A-Tone2")
+
+	combo := schedule.Combo{
+		From: *schedule.NewTimeOfDay("12:01"),
+		Every: 20,
+		Until: *schedule.NewTimeOfDay("19:01"),
+		Waits: []int{0},
+		Volumes:[]int{12},
+		Sounds: []string{"101"},
 	}
 
-	audioFileName := filepath.Join(conf.AudioDir, conf.Play.File)
-	log.Printf("using " + audioFileName)
+	player.PlayCombo(combo)
 
-	log.Printf("playback window: %02d:%02d to %02d:%02d",
-		conf.WindowStart.Hour(), conf.WindowStart.Minute(),
-		conf.WindowEnd.Hour(), conf.WindowEnd.Minute())
-	win := window.New(conf.WindowStart, conf.WindowEnd)
-
-	for {
-		toWindow := win.Until()
-		if toWindow == time.Duration(0) {
-			log.Print("starting burst")
-			for count := 0; count < conf.Play.BurstRepeat; count++ {
-				now := time.Now()
-				err := play(conf.Card, audioFileName)
-				if err != nil {
-					return err
-				}
-				if err := queueEvent(now, audioFileName); err != nil {
-					log.Printf("failed to queue event: %v", err)
-				}
-				time.Sleep(conf.Play.IntraSleep)
-			}
-			log.Print("sleeping")
-			time.Sleep(conf.Play.InterSleep)
-		} else {
-			log.Printf("sleeping until next window (%s)", toWindow)
-			time.Sleep(toWindow)
-		}
-	}
-}
-
-func setVolume(card int, controlName string, percent int) error {
-	cmd := exec.Command(
-		"amixer",
-		"-c", fmt.Sprint(card),
-		"sset",
-		controlName,
-		fmt.Sprintf("%d%%", percent),
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("volume set failed: %v\noutput:\n%s", err, out)
-	}
 	return nil
-}
-
-func play(card int, filename string) error {
-	cmd := exec.Command("play", "-q", filename)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("AUDIODEV=hw:%d", card))
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("play failed: %v\noutput:\n%s", err, out)
-	}
-	return nil
-}
-
-func queueEvent(ts time.Time, filename string) error {
-	eventDetails := map[string]interface{}{
-		"description": map[string]interface{}{
-			"type": "audioBait",
-			"details": map[string]interface{}{
-				"filename": filepath.Base(filename),
-				"volume":   100,
-			},
-		},
-	}
-	detailsJSON, err := json.Marshal(&eventDetails)
-	if err != nil {
-		return err
-	}
-
-	conn, err := dbus.SystemBus()
-	if err != nil {
-		return err
-	}
-	obj := conn.Object("org.cacophony.Events", "/org/cacophony/Events")
-	call := obj.Call("org.cacophony.Events.Queue", 0, detailsJSON, ts.UnixNano())
-	return call.Err
 }
