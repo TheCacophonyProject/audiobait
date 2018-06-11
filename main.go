@@ -6,7 +6,6 @@ import (
 
 	"github.com/TheCacophonyProject/audiobait/schedule"
 	arg "github.com/alexflint/go-arg"
-
 )
 
 // version is populated at link time via goreleaser
@@ -46,6 +45,12 @@ func runMain() error {
 	if err != nil {
 		return err
 	}
+
+	log.Printf("Audio files will be saved to %s", conf.AudioDir)
+
+	downloader := NewDownloader()
+	_, err = downloader.DownloadSchedule()
+	// what to do in case of error?
 
 	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
 	player := schedule.NewSchedulePlayer(soundCard, map[int]string{101: "/var/lib/audiobait/A-Tone-His_Self-1266414414.wav"})

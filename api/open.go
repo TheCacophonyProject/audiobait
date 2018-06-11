@@ -1,5 +1,5 @@
 /*
-audiobat - play sounds to lure animals for the CacophonyProject API.
+audiobait - play sounds to lure animals for the CacophonyProject API.
 Copyright (C) 2018, The Cacophony Project
 
 This program is free software: you can redistribute it and/or modify

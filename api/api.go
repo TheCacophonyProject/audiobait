@@ -1,5 +1,5 @@
 /*
-audiobat - play sounds to lure animals for the CacophonyProject API.
+audiobait - play sounds to lure animals for the CacophonyProject API.
 Copyright (C) 2018, The Cacophony Project
 
 This program is free software: you can redistribute it and/or modify
@@ -25,10 +25,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -101,6 +99,19 @@ func (api *CacophonyAPI) newToken() error {
 	return nil
 }
 
+type tokenResponse struct {
+	Success  bool
+	Messages []string
+	Token    string
+}
+
+func (r *tokenResponse) message() string {
+	if len(r.Messages) > 0 {
+		return r.Messages[0]
+	}
+	return "unknown"
+}
+
 func (api *CacophonyAPI) getFileFromJWT(jwt, path string) error {
 	// Create the file
 
@@ -131,21 +142,7 @@ func (api *CacophonyAPI) getFileFromJWT(jwt, path string) error {
 	return nil
 }
 
-// GetFilesFromSchedule will get all files from the IDs in the schedule and save to disk.
-func (api *CacophonyAPI) GetFilesFromSchedule(schedule Schedule, fileFolder string) error {
-	err := os.MkdirAll(fileFolder, 0755)
-	if err != nil {
-		return err
-	}
 
-	for _, fileID := range schedule.AllSounds {
-		err := api.GetFile(fileID, filepath.Join(fileFolder, strconv.Itoa(fileID)))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 // GetFile will download a file from the files api and save to disk
 func (api *CacophonyAPI) GetFile(fileID int, path string) error {
@@ -174,72 +171,6 @@ func (api *CacophonyAPI) GetFile(fileID int, path string) error {
 
 type fileResponse struct {
 	Jwt string "jwt"
-}
-
-// GetSchedule will get the audio schedule
-func (api *CacophonyAPI) GetSchedule() (Schedule, error) {
-	log.Println("Getting new schedule")
-	req, err := http.NewRequest("GET", api.serverURL+"/api/v1/schedules", nil)
-	req.Header.Set("Authorization", api.token)
-	client := new(http.Client)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return Schedule{}, err
-	}
-	defer resp.Body.Close()
-	/*
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return "", err
-		}
-		bodyString := string(bodyBytes)
-		//log.Printf("status code: %d, body:\n%s", resp.StatusCode, )
-		//return "", errors.New("non 200 status code")
-	*/
-	var sr scheduleResponse
-	d := json.NewDecoder(resp.Body)
-	if err := d.Decode(&sr); err != nil {
-		return Schedule{}, err
-	}
-
-	return sr.Schedule, nil
-}
-
-type scheduleResponse struct {
-	//Success  bool     "succes"
-	Schedule Schedule "schedule"
-}
-
-// Schedule fo the audio lures
-type Schedule struct {
-	Combos      []Combo "combos"
-	AllSounds   []int   "allSounds"
-	PlayNights  int     "playNights"
-	Description string  "description"
-	//ControlNights int     "controlNights"
-}
-
-// Combo of audio sounds to play
-type Combo struct {
-	From    string   "from"
-	Until   string   "until"
-	Waits   []int    "waits"
-	Sounds  []string "sounds"
-	Volumes []int    "volumes"
-}
-
-type tokenResponse struct {
-	Success  bool
-	Messages []string
-	Token    string
-}
-
-func (r *tokenResponse) message() string {
-	if len(r.Messages) > 0 {
-		return r.Messages[0]
-	}
-	return "unknown"
 }
 
 func (api *CacophonyAPI) ReportEvent(jsonDetails []byte, times []time.Time) error {
@@ -337,4 +268,19 @@ func temporaryError(err error) *Error {
 
 func formatTimestamp(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
+}
+
+// GetSchedule will get the audio schedule
+func (api *CacophonyAPI) GetSchedule() ([]byte, error) {
+	req, err := http.NewRequest("GET", api.serverURL+"/api/v1/schedules", nil)
+	req.Header.Set("Authorization", api.token)
+	client := new(http.Client)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return []byte{}, err
+	}
+	defer resp.Body.Close()
+
+	return ioutil.ReadAll(resp.Body)
 }

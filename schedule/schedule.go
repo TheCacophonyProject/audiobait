@@ -8,6 +8,7 @@ type Schedule struct {
 	ControlNights int
 	PlayNights int
 	Combos []Combo
+	AllSounds []int
 }
 
 type Combo struct{
