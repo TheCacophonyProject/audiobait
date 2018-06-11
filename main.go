@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"fmt"
 
 	"github.com/TheCacophonyProject/audiobait/schedule"
 	arg "github.com/alexflint/go-arg"
@@ -49,24 +48,22 @@ func runMain() error {
 	log.Printf("Audio files will be saved to %s", conf.AudioDir)
 
 	downloader := NewDownloader()
-	_, err = downloader.DownloadSchedule()
-	// what to do in case of error?
+	var sch schedule.Schedule
+	sch, err = downloader.DownloadSchedule()
 
-	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
-	player := schedule.NewSchedulePlayer(soundCard, map[int]string{101: "/var/lib/audiobait/A-Tone-His_Self-1266414414.wav"})
-
-	fmt.Println("Playing A-Tone2")
-
-	combo := schedule.Combo{
-		From: *schedule.NewTimeOfDay("12:01"),
-		Every: 20,
-		Until: *schedule.NewTimeOfDay("19:01"),
-		Waits: []int{0},
-		Volumes:[]int{12},
-		Sounds: []string{"101"},
+	if err == nil {
+		files, err2 := downloader.GetFilesForSchedule(sch, conf.AudioDir)
+		if err2 == nil {
+			soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
+			player := schedule.NewSchedulePlayer(soundCard, files, conf.AudioDir)
+			log.Print("Playing todays schedule")
+			player.PlayTodaysSchedule(sch)
+		} else {
+			log.Printf("Downloaded files for schedule failed %v", err2)
+		}
+	} else {
+		log.Printf("DownloadSchedule Failed %v", err)
 	}
-
-	player.PlayCombo(combo)
 
 	return nil
 }

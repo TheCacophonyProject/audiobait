@@ -2,16 +2,15 @@ package schedule
 
 import (
 	"math/rand"
-	"time"
 	"strconv"
+	"time"
 )
 
-
 type SoundChooser struct {
-	allSounds map[int]string  //Map of sound file id (from api database) to the filename on disk
-	allKeys []int
-	random *rand.Rand
-	previous int
+	allSounds map[int]string //Map of sound file id (from api database) to the filename on disk
+	allKeys   []int
+	random    *rand.Rand
+	previous  int
 }
 
 func NewSoundChooser(allSoundsMap map[int]string) *SoundChooser {
@@ -29,8 +28,8 @@ func (chooser *SoundChooser) setAllSounds(allSoundsMap map[int]string) *SoundCho
 	i := 0
 	chooser.allKeys = make([]int, len(chooser.allSounds))
 	for key := range chooser.allSounds {
-		  chooser.allKeys[i] = key
-			i++
+		chooser.allKeys[i] = key
+		i++
 	}
 	return chooser
 }
@@ -46,7 +45,7 @@ func (chooser *SoundChooser) ChooseSound(choice string) (int, string) {
 		return chooser.returnSound(chooser.allKeys[index])
 	} else if choice == "same" {
 		if chooser.previous != 0 {
-			return chooser.returnSound(chooser.previous);
+			return chooser.returnSound(chooser.previous)
 		}
 	} else {
 		fileId, err := strconv.Atoi(choice)
@@ -59,4 +58,3 @@ func (chooser *SoundChooser) ChooseSound(choice string) (int, string) {
 	}
 	return 0, ""
 }
-

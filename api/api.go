@@ -142,13 +142,9 @@ func (api *CacophonyAPI) getFileFromJWT(jwt, path string) error {
 	return nil
 }
 
-
-
-// GetFile will download a file from the files api and save to disk
-func (api *CacophonyAPI) GetFile(fileID int, path string) error {
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	}
+// GetFileDetails will download the file details from the files api.  This can then be parsed into
+// DownloadFile to download the file
+func (api *CacophonyAPI) GetFileDetails(fileID int) (*FileResponse, error) {
 	buf := new(bytes.Buffer)
 
 	req, err := http.NewRequest("GET", api.serverURL+"/api/v1/files/"+strconv.Itoa(fileID), buf)
@@ -157,20 +153,40 @@ func (api *CacophonyAPI) GetFile(fileID int, path string) error {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	var fr fileResponse
+	var fr FileResponse
 	d := json.NewDecoder(resp.Body)
 	if err := d.Decode(&fr); err != nil {
-		return err
+		return &fr, err
 	}
-	return api.getFileFromJWT(fr.Jwt, path)
+	return &fr, nil
 }
 
-type fileResponse struct {
-	Jwt string "jwt"
+// DownloadFile will take the file details from GetFileDetails and download the file to a specified path
+func (api *CacophonyAPI) DownloadFile(fileResponse *FileResponse, filePath string) error {
+	if _, err := os.Stat(filePath); err == nil {
+		return err
+	}
+
+	return api.getFileFromJWT(fileResponse.Jwt, filePath)
+}
+
+type FileResponse struct {
+	File FileInfo
+	Jwt  string
+}
+
+type FileInfo struct {
+	Details FileDetails
+	Type    string
+}
+
+type FileDetails struct {
+	Name         string
+	OriginalName string
 }
 
 func (api *CacophonyAPI) ReportEvent(jsonDetails []byte, times []time.Time) error {

@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-
 func TestParsingSchedule(t *testing.T) {
 	var schedule Schedule
 	err := ParseJSONConfigFile(`{
@@ -48,10 +47,11 @@ func TestParsingSchedule(t *testing.T) {
 		],
 		"playNights": 1,
 		"description": "Simple schedule. ",
-		"controlNights": 3
+		"controlNights": 3,
+		"allsounds": [1, 2, 3, 212, 215]
 	}`, &schedule)
 	if err != nil {
-    t.Errorf("Error loading schedule: %s", err)
+		t.Errorf("Error loading schedule: %s", err)
 	} else {
 		assert.Equal(t, schedule.Description, "Simple schedule. ")
 		assert.Equal(t, schedule.ControlNights, 3)
@@ -62,8 +62,9 @@ func TestParsingSchedule(t *testing.T) {
 		assert.Equal(t, len(schedule.Combos[0].Waits), 3)
 		assert.Equal(t, schedule.Combos[0].Waits[1], 5)
 		assert.Equal(t, schedule.Combos[1].Sounds[0], "215")
+
+		requiredSounds := []int{1, 2, 3, 212, 215}
+
+		assert.Equal(t, requiredSounds, schedule.GetReferencedSounds())
 	}
 }
-
-
-

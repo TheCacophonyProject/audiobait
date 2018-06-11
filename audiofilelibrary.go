@@ -63,3 +63,8 @@ func (library *AudioFileLibrary) AddFile(fileId, filename string) error {
 
 	return err
 }
+
+func (library *AudioFileLibrary) GetFileNameOnDisk(fileId string) (string, bool) {
+	filename, exists := library.FilesById[fileId]
+	return filename, exists
+}

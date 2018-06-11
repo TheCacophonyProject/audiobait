@@ -1,24 +1,24 @@
 package schedule
 
 import (
-	"time"
-	"log"
 	"fmt"
+	"log"
+	"path/filepath"
+	"time"
 
 	"github.com/TheCacophonyProject/window"
 )
-
 
 type AudioPlayer interface {
 	Play(audioFileName string, volume int) error
 }
 
 type TimeManager interface {
-  Now() time.Time
+	Now() time.Time
 	Wait(time.Duration)
 }
 
-type ActualTimeManager struct {}
+type ActualTimeManager struct{}
 
 func (t *ActualTimeManager) Now() time.Time {
 	return time.Now()
@@ -29,29 +29,33 @@ func (t *ActualTimeManager) Wait(duration time.Duration) {
 }
 
 type SchedulePlayer struct {
-	player AudioPlayer
-	time TimeManager
+	player    AudioPlayer
+	time      TimeManager
 	allSounds map[int]string
+	filesDir  string
 }
 
-func NewSchedulePlayer(audioPlayer AudioPlayer,  allSoundsMap map[int]string) *SchedulePlayer {
-	return NewSchedulePlayerWithTimeManager(audioPlayer, new(ActualTimeManager), allSoundsMap)
+func NewSchedulePlayer(audioPlayer AudioPlayer, allSoundsMap map[int]string, filesDirectory string) *SchedulePlayer {
+	return NewSchedulePlayerWithTimeManager(audioPlayer, new(ActualTimeManager), allSoundsMap, filesDirectory)
 }
 
-func NewSchedulePlayerWithTimeManager(audioPlayer AudioPlayer, timeManager TimeManager, allSoundsMap map[int]string) *SchedulePlayer {
-  return &SchedulePlayer{ player: audioPlayer, time: timeManager, allSounds: allSoundsMap}
+func NewSchedulePlayerWithTimeManager(audioPlayer AudioPlayer,
+	timeManager TimeManager,
+	allSoundsMap map[int]string,
+	filesDirectory string) *SchedulePlayer {
+	return &SchedulePlayer{player: audioPlayer, time: timeManager, allSounds: allSoundsMap, filesDir: filesDirectory}
 }
 
 func (sp SchedulePlayer) findNextCombo(combos []Combo) int {
-	soonest := 0;
+	soonest := 0
 	soonestTime := time.Duration(24) * time.Hour
 
 	for count := 0; count < len(combos); count++ {
 		timeUntil := sp.createWindow(combos[count]).Until()
 
-		if (timeUntil < soonestTime) {
-			soonest = count;
-			soonestTime = timeUntil;
+		if timeUntil < soonestTime {
+			soonest = count
+			soonestTime = timeUntil
 		}
 	}
 
@@ -59,13 +63,13 @@ func (sp SchedulePlayer) findNextCombo(combos []Combo) int {
 }
 
 func (sp SchedulePlayer) IsSoundPlayingDay(schedule Schedule) bool {
-	if (schedule.ControlNights <= 0) {
+	if schedule.ControlNights <= 0 {
 		return true
 	}
 
 	cycleLength := schedule.PlayNights + schedule.ControlNights
 	todaysStart := sp.nextDayStart().Add(-24 * time.Hour)
-	dayOfCycle := todaysStart.Day() % cycleLength;
+	dayOfCycle := todaysStart.Day() % cycleLength
 
 	fmt.Print("Cycle day is ")
 	fmt.Print("day of Cycle")
@@ -74,7 +78,7 @@ func (sp SchedulePlayer) IsSoundPlayingDay(schedule Schedule) bool {
 }
 
 func (sp SchedulePlayer) PlayTodaysSchedule(schedule Schedule) {
-	if (sp.IsSoundPlayingDay(schedule)) {
+	if sp.IsSoundPlayingDay(schedule) {
 		sp.PlayTodaysCombos(schedule.Combos)
 	}
 }
@@ -98,23 +102,22 @@ func (sp SchedulePlayer) nextDayStart() time.Time {
 	tTime := sp.time.Now()
 
 	// If it is night time then the next day starts tomorrow
-	if (tTime.Hour() >= 12) {
+	if tTime.Hour() >= 12 {
 		tTime = tTime.Add(14 * time.Hour)
 	}
 
 	return time.Date(tTime.Year(), tTime.Month(), tTime.Day(), 12, 00, 0, 0, tTime.Location())
 }
 
-
 func (sp SchedulePlayer) PlayCombo(combo Combo) bool {
 	win := sp.createWindow(combo)
 	soundChooser := NewSoundChooser(sp.allSounds)
 
 	toWindow := win.Until()
-	if (toWindow > time.Duration(0)) {
-			log.Printf("sleeping until next window (%s)", toWindow)
-			sp.time.Wait(toWindow)
-			sp.playSounds(combo, soundChooser)
+	if toWindow > time.Duration(0) {
+		log.Printf("sleeping until next window (%s)", toWindow)
+		sp.time.Wait(toWindow)
+		sp.playSounds(combo, soundChooser)
 	}
 
 	every := time.Duration(combo.Every) * time.Second
@@ -132,7 +135,7 @@ func (sp SchedulePlayer) PlayCombo(combo Combo) bool {
 		}
 	}
 
-	return true;
+	return true
 }
 
 func (sp SchedulePlayer) createWindow(combo Combo) *window.Window {
@@ -142,11 +145,13 @@ func (sp SchedulePlayer) createWindow(combo Combo) *window.Window {
 }
 
 func (sp SchedulePlayer) playSounds(combo Combo, chooser *SoundChooser) {
+	log.Print("Starting sound burst")
 	for count := 0; count < len(combo.Sounds); count++ {
-		log.Print("Starting burst")
 		sp.time.Wait(time.Duration(combo.Waits[count]) * time.Second)
 		_, soundFilename := chooser.ChooseSound(combo.Sounds[count])
-		if err := sp.player.Play(soundFilename, combo.Volumes[count]); err != nil {
+		soundFilePath := filepath.Join(sp.filesDir, soundFilename)
+		log.Printf("Playing sound %s", soundFilePath)
+		if err := sp.player.Play(soundFilePath, combo.Volumes[count]); err != nil {
 			log.Printf("Play failed: %v", err)
 		}
 	}

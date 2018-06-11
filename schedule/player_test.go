@@ -1,23 +1,22 @@
-
 package schedule
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
-	"strconv"
 
 	"github.com/stretchr/testify/assert"
 )
 
-var soundFiles = map[int]string {
-  1 : "squeal",
-	3 : "beep",
-	4 : "tweet",
+var soundFiles = map[int]string{
+	1: "squeal",
+	3: "beep",
+	4: "tweet",
 }
 
 type TestTimeManagerAndPlayer struct {
-	NowTime time.Time
+	NowTime   time.Time
 	PlayTimes []string
 }
 
@@ -45,7 +44,7 @@ func createPlayer(startTime string) (*SchedulePlayer, *TestTimeManagerAndPlayer)
 	testPlayerAndTimer := new(TestTimeManagerAndPlayer)
 	testPlayerAndTimer.PlayTimes = make([]string, 0, 10)
 	testPlayerAndTimer.NowTime = NewTimeOfDay(startTime).Time
-	scheduleplayer := NewSchedulePlayerWithTimeManager(testPlayerAndTimer, testPlayerAndTimer, soundFiles)
+	scheduleplayer := NewSchedulePlayerWithTimeManager(testPlayerAndTimer, testPlayerAndTimer, soundFiles, "")
 	return scheduleplayer, testPlayerAndTimer
 }
 
@@ -117,14 +116,12 @@ func TestScheduleWithZeroControlNightsAlwaysPlays(t *testing.T) {
 	assert.Equal(t, true, schedulePlayer.IsSoundPlayingDay(schedule))
 }
 
-
 func TestScheduleWithControlDaysOnlyPlaysOneEarlyDays(t *testing.T) {
 	schedule := Schedule{ControlNights: 5, PlayNights: 2}
 	schedulePlayer, _ := createPlayer("12:01")
 
 	assert.Equal(t, true, schedulePlayer.IsSoundPlayingDay(schedule))
 }
-
 
 func TestPlayComboWithMultipleSoundsIncludingSame(t *testing.T) {
 	combos := []Combo{createCombo("18:00", "18:55", 30, "roar")}
@@ -144,45 +141,41 @@ func TestPlayComboWithMultipleSoundsIncludingSame(t *testing.T) {
 		registerPlaySound("18:30:03", "roar"),
 		registerPlaySound("18:30:05", "meow"),
 	}
-	assert.Equal(t, expectedPlayTimes, testRecorder.PlayTimes, )
+	assert.Equal(t, expectedPlayTimes, testRecorder.PlayTimes)
 }
-
 
 func TestFindNextCombo(t *testing.T) {
 	combos := []Combo{createCombo("12:03", "15:08", 30, "a"),
-										createCombo("17:12", "02:15", 45, "b"),
-										createCombo("03:12", "06:12", 60, "c")}
+		createCombo("17:12", "02:15", 45, "b"),
+		createCombo("03:12", "06:12", 60, "c")}
 	schedulePlayer, _ := createPlayer("12:13")
 	fmt.Print(combos[schedulePlayer.findNextCombo(combos)])
 }
 
-
-
 func createCombo(timeStart, timeEnd string, everyMinutes int, soundName string) Combo {
 	return Combo{
-		From: *NewTimeOfDay(timeStart),
-		Every: everyMinutes * 60,
-		Until: *NewTimeOfDay(timeEnd),
-		Waits: []int{0},
-		Volumes:[]int{10},
-		Sounds: []string{makeSoundNameForSchedule(soundName)},
-  }
+		From:    *NewTimeOfDay(timeStart),
+		Every:   everyMinutes * 60,
+		Until:   *NewTimeOfDay(timeEnd),
+		Waits:   []int{0},
+		Volumes: []int{10},
+		Sounds:  []string{makeSoundNameForSchedule(soundName)},
+	}
 }
 
 func addAnotherSound(combo *Combo, wait int, sound string) *Combo {
 	combo.Waits = append(combo.Waits, wait)
-	combo.Volumes	= append(combo.Volumes, 400)
+	combo.Volumes = append(combo.Volumes, 400)
 	combo.Sounds = append(combo.Sounds, makeSoundNameForSchedule(sound))
 	return combo
 }
 
 func makeSoundNameForSchedule(soundName string) string {
 	scheduleIdentifier := soundName
-	if (soundName != "same" && soundName != "random") {
+	if soundName != "same" && soundName != "random" {
 		soundId := len(soundFiles) + 3
 		soundFiles[soundId] = soundName
 		scheduleIdentifier = strconv.Itoa(soundId)
 	}
-	return scheduleIdentifier;
+	return scheduleIdentifier
 }
-
