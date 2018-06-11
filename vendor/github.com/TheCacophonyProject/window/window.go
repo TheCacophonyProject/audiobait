@@ -18,7 +18,7 @@ func New(start, end time.Time) *Window {
 
 	xMidnight := false
 	if end.Before(start) {
-		end = end.Add(24 * time.Hour)
+		end = addDay(end)
 		xMidnight = true
 	}
 
@@ -50,24 +50,54 @@ func (w *Window) Until() time.Duration {
 		return time.Duration(0)
 	}
 
-	now := normaliseTime(w.Now())
-	if w.xMidnight && now.Before(w.Start) {
-		now = now.Add(24 * time.Hour)
-	}
+	now := w.nowTimeAfterStart()
 
-	untilStart := w.Start.Sub(now)
-	if untilStart > 0 {
-		// Before window start.
-		return untilStart
-	}
-	if w.End.Sub(now) >= 0 {
+	if w.End.After(now) || w.End == now {
 		// During window.
 		return time.Duration(0)
 	}
 	// After window.
-	return w.Start.Add(24 * time.Hour).Sub(now)
+	return addDay(w.Start).Sub(now)
+}
+
+func addDay(t time.Time) time.Time {
+	return t.Add(24 * time.Hour)
+}
+
+// nowTimeAfterStart to make time calculations easier we choose a date time to represent now
+// that is on or the next one after the start time
+func (w *Window) nowTimeAfterStart() time.Time {
+	now := normaliseTime(w.Now())
+	if now.Before(w.Start) {
+		now = addDay(now)
+	}
+	return now
 }
 
 func normaliseTime(t time.Time) time.Time {
 	return time.Date(1, 1, 1, t.Hour(), t.Minute(), t.Second(), 0, time.UTC)
+}
+
+// UntilEnd returns the duration until the end of the time window.
+func (w *Window) UntilEnd() time.Duration {
+	if (w.Active()) {
+		return w.End.Sub(w.nowTimeAfterStart())
+	}
+	return time.Duration(0)
+}
+
+// UntilNextInterval gets when the next interval starts.
+// Only works when window is currently active.
+func (w *Window) UntilNextInterval(interval time.Duration) time.Duration {
+	if (w.Active()) {
+		now := w.nowTimeAfterStart()
+		elapsedTime := now.Sub(w.Start)
+		nextInterval := w.Start.Add(elapsedTime.Truncate(interval) + interval)
+
+		if (w.End.After(nextInterval)) {
+			return nextInterval.Sub(now)
+		}
+	}
+
+	return time.Duration(-1)
 }

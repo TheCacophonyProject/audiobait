@@ -5,13 +5,13 @@
   branch = "master"
   name = "github.com/TheCacophonyProject/window"
   packages = ["."]
-  revision = "4e801cea42c05fefe582a83e4455e88e62b8711a"
+  revision = "3a2d74f7fcf50ffc2057a83d74bcb12e0412e348"
 
 [[projects]]
   branch = "master"
   name = "github.com/alexflint/go-arg"
   packages = ["."]
-  revision = "0cc8e30fd64c8c71d094be299ad424da93ef9aed"
+  revision = "f7c0423bd11ee80ab81d25c6d46f492998af8547"
 
 [[projects]]
   branch = "master"
