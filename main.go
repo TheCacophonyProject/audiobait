@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/TheCacophonyProject/audiobait/schedule"
+	"github.com/TheCacophonyProject/audiobait/playlist"
 	arg "github.com/alexflint/go-arg"
 )
 
@@ -45,25 +45,36 @@ func runMain() error {
 		return err
 	}
 
-	log.Printf("Audio files will be saved to %s", conf.AudioDir)
+	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
+	log.Printf("Audio files directory is %s", conf.AudioDir)
 
-	downloader := NewDownloader()
-	var sch schedule.Schedule
-	sch, err = downloader.DownloadSchedule()
-
-	if err == nil {
-		files, err2 := downloader.GetFilesForSchedule(sch, conf.AudioDir)
-		if err2 == nil {
-			soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
-			player := schedule.NewSchedulePlayer(soundCard, files, conf.AudioDir)
-			log.Print("Playing todays schedule")
-			player.PlayTodaysSchedule(sch)
-		} else {
-			log.Printf("Downloaded files for schedule failed %v", err2)
+	for true {
+		err = DownloadAndPlaySounds(conf.AudioDir, soundCard)
+		if err != nil {
+			// Wait until tomorrow.
+			log.Printf("Error playing sounds %v", err)
+			playlist.WaitUntilNextDay()
 		}
-	} else {
-		log.Printf("DownloadSchedule Failed %v", err)
+		log.Println("Back in this loop")
 	}
 
+	return nil
+}
+
+func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) error {
+	downloader := NewDownloader()
+	schedule, err := downloader.DownloadSchedule()
+	if err != nil {
+		return err
+	}
+
+	files, err2 := downloader.GetFilesForSchedule(schedule, audioDir)
+	if err2 != nil {
+		return err2
+	}
+
+	log.Printf("Playing sounds")
+	player := playlist.NewPlayer(soundCard, files, audioDir)
+	player.PlayTodaysSchedule(schedule)
 	return nil
 }

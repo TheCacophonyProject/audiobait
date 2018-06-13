@@ -1,8 +1,9 @@
-package schedule
+package playlist
 
-import ("fmt"
-	"testing"
+import (
 	"encoding/json"
+	"fmt"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -35,7 +36,7 @@ func parseJsonTimeAndCheck(t *testing.T, time string, checktime string) {
 }
 
 func parseJsonShouldFail(t *testing.T, time string) {
-	if _, err := parseJsonTime(time) ; err == nil {
+	if _, err := parseJsonTime(time); err == nil {
 		t.Errorf("Should not have parsed time correctly: %s", time)
 	} else {
 		fmt.Println("Invalid time didn't parse (this is the expected result).")
@@ -46,11 +47,9 @@ func parseJsonTime(time string) (TestTimeOfDay, error) {
 	var timeOfDay TestTimeOfDay
 	fmt.Printf("Parsing time '%s'.\n", time)
 
-	data := []byte(fmt.Sprintf(`{"time": "%s"}`, time));
+	data := []byte(fmt.Sprintf(`{"time": "%s"}`, time))
 
 	err := json.Unmarshal(data, &timeOfDay)
 
 	return timeOfDay, err
 }
-
-

@@ -52,7 +52,7 @@ func (w *Window) Until() time.Duration {
 
 	now := w.nowTimeAfterStart()
 
-	if w.End.After(now) || w.End == now {
+	if w.End.After(now) {
 		// During window.
 		return time.Duration(0)
 	}

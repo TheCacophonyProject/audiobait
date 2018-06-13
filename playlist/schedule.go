@@ -1,4 +1,4 @@
-package schedule
+package playlist
 
 import (
 	"encoding/json"

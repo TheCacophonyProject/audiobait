@@ -1,4 +1,4 @@
-package schedule
+package playlist
 
 import (
 	"fmt"
@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var soundChooserFiles = map[int]string {
-	1 : "squeal",
-	3 : "beep",
-	4 : "tweet",
+var soundChooserFiles = map[int]string{
+	1: "squeal",
+	3: "beep",
+	4: "tweet",
 }
 
 func TestSoundChooserRandom(t *testing.T) {

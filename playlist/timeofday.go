@@ -1,9 +1,9 @@
-package schedule
+package playlist
 
 import "time"
 
 type TimeOfDay struct {
-  time.Time
+	time.Time
 }
 
 const timeLayoutJson = `"15:04"`

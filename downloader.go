@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/TheCacophonyProject/audiobait/api"
-	schapi "github.com/TheCacophonyProject/audiobait/schedule"
+	"github.com/TheCacophonyProject/audiobait/playlist"
 )
 
 type Downloader struct {
@@ -27,7 +27,7 @@ func (dl *Downloader) initiateAPI() error {
 	return err
 }
 
-func (dl *Downloader) DownloadSchedule() (schapi.Schedule, error) {
+func (dl *Downloader) DownloadSchedule() (playlist.Schedule, error) {
 	if err := dl.initiateAPI(); err != nil {
 		log.Printf("Could not connect to api. %s", err)
 	}
@@ -35,7 +35,7 @@ func (dl *Downloader) DownloadSchedule() (schapi.Schedule, error) {
 	log.Println("Getting schedule")
 	sch, err := dl.GetSchedule()
 	if err != nil {
-		return schapi.Schedule{}, err
+		return playlist.Schedule{}, err
 	}
 
 	return sch, nil
@@ -43,12 +43,12 @@ func (dl *Downloader) DownloadSchedule() (schapi.Schedule, error) {
 
 }
 
-// func DownloadSchedule(savePath string) (schapi.Schedule, error){
+// func DownloadSchedule(savePath string) (playlist.Schedule, error){
 //   log.Println("Getting schedule")
 
 // 	sch, err := GetSchedule(api)
 // 	if err != nil {
-// 	  return schapi.Schedule{}, err
+// 	  return playlist.Schedule{}, err
 // 	}
 // 	log.Println(sch)
 // 	log.Println("Getting files")
@@ -57,7 +57,7 @@ func (dl *Downloader) DownloadSchedule() (schapi.Schedule, error) {
 // }
 
 // GetFilesFromSchedule will get all files from the IDs in the schedule and save to disk.
-func (dl *Downloader) GetFilesForSchedule(schedule schapi.Schedule, fileFolder string) (map[int]string, error) {
+func (dl *Downloader) GetFilesForSchedule(schedule playlist.Schedule, fileFolder string) (map[int]string, error) {
 	referencedFiles := schedule.GetReferencedSounds()
 
 	err := os.MkdirAll(fileFolder, 0755)
@@ -86,6 +86,7 @@ func (dl *Downloader) listAvailableFiles(audioLibrary *AudioFileLibrary, referen
 }
 
 func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, referencedFiles []int, fileFolder string) {
+	log.Println("Starting downloading audio files.")
 	for _, fileId := range referencedFiles {
 		strFileId := strconv.Itoa(fileId)
 		if _, exists := audioLibrary.GetFileNameOnDisk(strFileId); !exists {
@@ -110,27 +111,27 @@ func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, refere
 			}
 		}
 	}
+	log.Println("Downloading audio files complete.")
 }
 
 // GetSchedule will get the audio schedule
-func (dl *Downloader) GetSchedule() (schapi.Schedule, error) {
+func (dl *Downloader) GetSchedule() (playlist.Schedule, error) {
 	jsonData, err := dl.api.GetSchedule()
 	if err != nil {
-		return schapi.Schedule{}, err
+		return playlist.Schedule{}, err
 	}
 	log.Println("Audio schedule downloaded from server")
 
 	// parse schedule
 	var sr scheduleResponse
 	if err := json.Unmarshal(jsonData, &sr); err != nil {
-		return schapi.Schedule{}, err
+		return playlist.Schedule{}, err
 	}
 	log.Println("Audio schedule parsed sucessfully")
-	log.Println(sr.Schedule)
 
 	return sr.Schedule, nil
 }
 
 type scheduleResponse struct {
-	Schedule schapi.Schedule
+	Schedule playlist.Schedule
 }

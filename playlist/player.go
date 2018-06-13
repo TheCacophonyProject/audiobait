@@ -1,7 +1,6 @@
-package schedule
+package playlist
 
 import (
-	"fmt"
 	"log"
 	"path/filepath"
 	"time"
@@ -9,7 +8,7 @@ import (
 	"github.com/TheCacophonyProject/window"
 )
 
-type AudioPlayer interface {
+type AudioDevice interface {
 	Play(audioFileName string, volume int) error
 }
 
@@ -25,25 +24,33 @@ func (t *ActualTimeManager) Now() time.Time {
 }
 
 func (t *ActualTimeManager) Wait(duration time.Duration) {
+	log.Printf("%v: Waiting for %v", time.Now(), duration)
 	time.Sleep(duration)
 }
 
 type SchedulePlayer struct {
-	player    AudioPlayer
+	player    AudioDevice
 	time      TimeManager
 	allSounds map[int]string
 	filesDir  string
 }
 
-func NewSchedulePlayer(audioPlayer AudioPlayer, allSoundsMap map[int]string, filesDirectory string) *SchedulePlayer {
-	return NewSchedulePlayerWithTimeManager(audioPlayer, new(ActualTimeManager), allSoundsMap, filesDirectory)
+func NewPlayer(audioDevice AudioDevice, allSoundsMap map[int]string, filesDirectory string) *SchedulePlayer {
+	return newSchedulePlayerWithTimeManager(audioDevice, new(ActualTimeManager), allSoundsMap, filesDirectory)
 }
 
-func NewSchedulePlayerWithTimeManager(audioPlayer AudioPlayer,
+func newSchedulePlayerWithTimeManager(audioDevice AudioDevice,
 	timeManager TimeManager,
 	allSoundsMap map[int]string,
 	filesDirectory string) *SchedulePlayer {
-	return &SchedulePlayer{player: audioPlayer, time: timeManager, allSounds: allSoundsMap, filesDir: filesDirectory}
+	return &SchedulePlayer{player: audioDevice, time: timeManager, allSounds: allSoundsMap, filesDir: filesDirectory}
+}
+
+func WaitUntilNextDay() {
+	sp := NewPlayer(nil, nil, "")
+	tomorrowStart := sp.nextDayStart()
+	log.Println("No more audiobait scheduled for today. Waiting until new day starts (sometime around midday)")
+	sp.time.Wait(tomorrowStart.Sub(sp.time.Now()))
 }
 
 func (sp SchedulePlayer) findNextCombo(combos []Combo) int {
@@ -71,42 +78,53 @@ func (sp SchedulePlayer) IsSoundPlayingDay(schedule Schedule) bool {
 	todaysStart := sp.nextDayStart().Add(-24 * time.Hour)
 	dayOfCycle := todaysStart.Day() % cycleLength
 
-	fmt.Print("Cycle day is ")
-	fmt.Print("day of Cycle")
-
 	return dayOfCycle < schedule.PlayNights
 }
 
 func (sp SchedulePlayer) PlayTodaysSchedule(schedule Schedule) {
+	tomorrowStart := sp.nextDayStart()
+	log.Printf("Next day start is :%v", tomorrowStart)
 	if sp.IsSoundPlayingDay(schedule) {
+		log.Println("Today is an audio bait day.  Lets see what animals we can attract...")
 		sp.PlayTodaysCombos(schedule.Combos)
+	} else {
+		log.Println("Today is a control day and no audiobait sounds will be played.")
 	}
+	log.Println("No more audiobait scheduled for today. Waiting until new day starts (sometime around midday)")
+
+	sp.time.Wait(tomorrowStart.Sub(sp.time.Now()))
 }
 
 func (sp SchedulePlayer) PlayTodaysCombos(combos []Combo) {
-	numberCombos := len(combos)
 	tomorrowStart := sp.nextDayStart()
+	numberCombos := len(combos)
 	count := sp.findNextCombo(combos)
 
 	nextComboStart := sp.time.Now().Add(sp.createWindow(combos[count]).Until())
 
 	for nextComboStart.Before(tomorrowStart) {
+		log.Println("Playing combo...")
 		sp.PlayCombo(combos[count])
 		count = (count + 1) % numberCombos
 		nextComboStart = sp.time.Now().Add(sp.createWindow(combos[count]).Until())
+		log.Printf("Next combo start %v", nextComboStart)
 	}
+	log.Println("Completed playing combos for today")
 }
 
 func (sp SchedulePlayer) nextDayStart() time.Time {
-	// Days start at 12 midday.
+
 	tTime := sp.time.Now()
 
-	// If it is night time then the next day starts tomorrow
-	if tTime.Hour() >= 12 {
-		tTime = tTime.Add(14 * time.Hour)
-	}
+	// days start at this time
+	todayChangeOverTime := time.Date(tTime.Year(), tTime.Month(), tTime.Day(), 12, 0, 0, 0, tTime.Location())
 
-	return time.Date(tTime.Year(), tTime.Month(), tTime.Day(), 12, 00, 0, 0, tTime.Location())
+	// If it is night time then the next day starts tomorrow
+	if tTime.After(todayChangeOverTime) {
+		return todayChangeOverTime.Add(24 * time.Hour)
+	} else {
+		return todayChangeOverTime
+	}
 }
 
 func (sp SchedulePlayer) PlayCombo(combo Combo) bool {
@@ -125,7 +143,7 @@ func (sp SchedulePlayer) PlayCombo(combo Combo) bool {
 	for true {
 		nextBurstSleep := win.UntilNextInterval(every)
 		if nextBurstSleep > time.Duration(-1) {
-			log.Print("ended burst, sleeping until next burst")
+			log.Print("Sleeping until next burst")
 			sp.time.Wait(nextBurstSleep)
 			sp.playSounds(combo, soundChooser)
 		} else {

@@ -1,4 +1,4 @@
-package schedule
+package playlist
 
 import (
 	"fmt"
@@ -15,12 +15,12 @@ var soundFiles = map[int]string{
 	4: "tweet",
 }
 
-type TestTimeManagerAndPlayer struct {
+type TestTimeManagerAndAudioDevice struct {
 	NowTime   time.Time
 	PlayTimes []string
 }
 
-func (p *TestTimeManagerAndPlayer) Play(audioFileName string, _ int) error {
+func (p *TestTimeManagerAndAudioDevice) Play(audioFileName string, _ int) error {
 	nowTimeAsString := fmt.Sprintf("%02d:%02d:%02d", p.NowTime.Hour(), p.NowTime.Minute(), p.NowTime.Second())
 	playingString := registerPlaySound(nowTimeAsString, audioFileName)
 	p.PlayTimes = append(p.PlayTimes, playingString)
@@ -28,11 +28,11 @@ func (p *TestTimeManagerAndPlayer) Play(audioFileName string, _ int) error {
 	return nil
 }
 
-func (t *TestTimeManagerAndPlayer) Now() time.Time {
+func (t *TestTimeManagerAndAudioDevice) Now() time.Time {
 	return t.NowTime
 }
 
-func (t *TestTimeManagerAndPlayer) Wait(duration time.Duration) {
+func (t *TestTimeManagerAndAudioDevice) Wait(duration time.Duration) {
 	t.NowTime = t.NowTime.Add(duration).Add(1000 * time.Nanosecond)
 }
 
@@ -40,11 +40,11 @@ func registerPlaySound(playTime, audioFileName string) string {
 	return fmt.Sprintf("%s: Playing %s", playTime, audioFileName)
 }
 
-func createPlayer(startTime string) (*SchedulePlayer, *TestTimeManagerAndPlayer) {
-	testPlayerAndTimer := new(TestTimeManagerAndPlayer)
+func createPlayer(startTime string) (*SchedulePlayer, *TestTimeManagerAndAudioDevice) {
+	testPlayerAndTimer := new(TestTimeManagerAndAudioDevice)
 	testPlayerAndTimer.PlayTimes = make([]string, 0, 10)
 	testPlayerAndTimer.NowTime = NewTimeOfDay(startTime).Time
-	scheduleplayer := NewSchedulePlayerWithTimeManager(testPlayerAndTimer, testPlayerAndTimer, soundFiles, "")
+	scheduleplayer := newSchedulePlayerWithTimeManager(testPlayerAndTimer, testPlayerAndTimer, soundFiles, "")
 	return scheduleplayer, testPlayerAndTimer
 }
 
