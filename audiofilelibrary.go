@@ -35,8 +35,8 @@ func (library *AudioFileLibrary) openLibrary(filePath string) *AudioFileLibrary 
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if line[0] != '%' {
-			parts := strings.SplitN(line, ":", 1)
+		if len(line) > 0 && line[0] != '%' {
+			parts := strings.SplitN(line, ":", 2)
 
 			if len(parts) > 1 {
 				library.FilesById[parts[0]] = strings.Trim(parts[1], " ")
@@ -63,10 +63,10 @@ func (library *AudioFileLibrary) AddFile(fileId, filename string) error {
 	defer f.Close()
 
 	if firstItem {
-		_, _ = f.WriteString("#  This is a the list of all the audio files downloaded indexed by id of file")
+		_, _ = f.WriteString("\n#  This is a the list of all the audio files downloaded indexed by id of file")
 	}
 
-	text := "\r\n" + fileId + ": " + filename
+	text := "\n" + fileId + ": " + filename
 	_, err = f.WriteString(text)
 
 	return err
