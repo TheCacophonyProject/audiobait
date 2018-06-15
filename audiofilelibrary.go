@@ -1,3 +1,7 @@
+// Copyright 2018 The Cacophony Project. All rights reserved.
+// Use of this source code is governed by the Apache License Version 2.0;
+// see the LICENSE file for further details.
+
 package main
 
 import (
@@ -32,13 +36,17 @@ func (library *AudioFileLibrary) openLibrary(filePath string) *AudioFileLibrary 
 		line := scanner.Text()
 
 		if line[0] != '%' {
-			parts := strings.Split(line, ":")
+			parts := strings.SplitN(line, ":", 1)
 
 			if len(parts) > 1 {
 				library.FilesById[parts[0]] = strings.Trim(parts[1], " ")
 			}
 		}
 	}
+	if scanner.Err() != nil {
+		log.Printf("Error loading audio library %s", scanner.Err())
+	}
+
 	return library
 }
 

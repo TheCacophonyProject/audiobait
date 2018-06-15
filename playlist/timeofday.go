@@ -1,3 +1,7 @@
+// Copyright 2018 The Cacophony Project. All rights reserved.
+// Use of this source code is governed by the Apache License Version 2.0;
+// see the LICENSE file for further details.
+
 package playlist
 
 import "time"
@@ -6,8 +10,8 @@ type TimeOfDay struct {
 	time.Time
 }
 
-const timeLayoutJson = `"15:04"`
 const timeLayout = `15:04`
+const timeLayoutJson = `"` + timeLayout + `"`
 
 func (timeOfDay *TimeOfDay) UnmarshalJSON(bValue []byte) (err error) {
 	sValue := string(bValue)
@@ -20,10 +24,9 @@ func (timeOfDay *TimeOfDay) UnmarshalJSON(bValue []byte) (err error) {
 }
 
 func NewTimeOfDay(timeOfDayString string) *TimeOfDay {
-	timeOfDay := new(TimeOfDay)
-	var err error
-	if timeOfDay.Time, err = time.Parse(timeLayout, timeOfDayString); err != nil {
-		timeOfDay.Time = time.Time{}
+	t, err := time.Parse(timeLayout, timeOfDayString)
+	if err != nil {
+		t = time.Time{}
 	}
-	return timeOfDay
+	return &TimeOfDay{Time: t}
 }

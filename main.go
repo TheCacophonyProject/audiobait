@@ -1,3 +1,7 @@
+// Copyright 2018 The Cacophony Project. All rights reserved.
+// Use of this source code is governed by the Apache License Version 2.0;
+// see the LICENSE file for further details.
+
 package main
 
 import (
@@ -48,17 +52,14 @@ func runMain() error {
 	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
 	log.Printf("Audio files directory is %s", conf.AudioDir)
 
-	for true {
+	for {
 		err = DownloadAndPlaySounds(conf.AudioDir, soundCard)
 		if err != nil {
 			// Wait until tomorrow.
 			log.Printf("Error playing sounds %v", err)
 			playlist.WaitUntilNextDay()
 		}
-		log.Println("Back in this loop")
 	}
-
-	return nil
 }
 
 func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) error {
@@ -68,9 +69,9 @@ func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) erro
 		return err
 	}
 
-	files, err2 := downloader.GetFilesForSchedule(schedule, audioDir)
-	if err2 != nil {
-		return err2
+	files, err := downloader.GetFilesForSchedule(schedule, audioDir)
+	if err != nil {
+		return err
 	}
 
 	log.Printf("Playing sounds")

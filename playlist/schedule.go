@@ -1,3 +1,7 @@
+// Copyright 2018 The Cacophony Project. All rights reserved.
+// Use of this source code is governed by the Apache License Version 2.0;
+// see the LICENSE file for further details.
+
 package playlist
 
 import (
@@ -29,6 +33,7 @@ func ParseJSONConfigFile(jsonAsString string, schedule *Schedule) error {
 	return err
 }
 
+// GetReferencedSounds finds the sound file ids that required for playing this schedule.
 func (schedule *Schedule) GetReferencedSounds() []int {
 	sounds := make(map[string]bool)
 	for _, combo := range schedule.Combos {
@@ -51,4 +56,13 @@ func (schedule *Schedule) GetReferencedSounds() []int {
 		}
 	}
 	return ids[:i]
+}
+
+// CycleLength calculates how many days the play-control cycle is.
+func (schedule *Schedule) CycleLength() int {
+	cycle := schedule.PlayNights + schedule.ControlNights
+	if cycle > 0 {
+		return cycle
+	}
+	return 1
 }

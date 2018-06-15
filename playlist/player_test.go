@@ -1,3 +1,7 @@
+// Copyright 2018 The Cacophony Project. All rights reserved.
+// Use of this source code is governed by the Apache License Version 2.0;
+// see the LICENSE file for further details.
+
 package playlist
 
 import (
@@ -15,12 +19,12 @@ var soundFiles = map[int]string{
 	4: "tweet",
 }
 
-type TestTimeManagerAndAudioDevice struct {
+type TestClockAndAudioDevice struct {
 	NowTime   time.Time
 	PlayTimes []string
 }
 
-func (p *TestTimeManagerAndAudioDevice) Play(audioFileName string, _ int) error {
+func (p *TestClockAndAudioDevice) Play(audioFileName string, _ int) error {
 	nowTimeAsString := fmt.Sprintf("%02d:%02d:%02d", p.NowTime.Hour(), p.NowTime.Minute(), p.NowTime.Second())
 	playingString := registerPlaySound(nowTimeAsString, audioFileName)
 	p.PlayTimes = append(p.PlayTimes, playingString)
@@ -28,23 +32,23 @@ func (p *TestTimeManagerAndAudioDevice) Play(audioFileName string, _ int) error 
 	return nil
 }
 
-func (t *TestTimeManagerAndAudioDevice) Now() time.Time {
+func (t *TestClockAndAudioDevice) Now() time.Time {
 	return t.NowTime
 }
 
-func (t *TestTimeManagerAndAudioDevice) Wait(duration time.Duration) {
-	t.NowTime = t.NowTime.Add(duration).Add(1000 * time.Nanosecond)
+func (t *TestClockAndAudioDevice) Wait(duration time.Duration) {
+	t.NowTime = t.NowTime.Add(duration).Add(time.Microsecond)
 }
 
 func registerPlaySound(playTime, audioFileName string) string {
 	return fmt.Sprintf("%s: Playing %s", playTime, audioFileName)
 }
 
-func createPlayer(startTime string) (*SchedulePlayer, *TestTimeManagerAndAudioDevice) {
-	testPlayerAndTimer := new(TestTimeManagerAndAudioDevice)
+func createPlayer(startTime string) (*SchedulePlayer, *TestClockAndAudioDevice) {
+	testPlayerAndTimer := new(TestClockAndAudioDevice)
 	testPlayerAndTimer.PlayTimes = make([]string, 0, 10)
 	testPlayerAndTimer.NowTime = NewTimeOfDay(startTime).Time
-	scheduleplayer := newSchedulePlayerWithTimeManager(testPlayerAndTimer, testPlayerAndTimer, soundFiles, "")
+	scheduleplayer := newSchedulePlayerWithClock(testPlayerAndTimer, testPlayerAndTimer, soundFiles, "")
 	return scheduleplayer, testPlayerAndTimer
 }
 
@@ -52,7 +56,7 @@ func TestPlayingComboStartDuring(t *testing.T) {
 	combo := createCombo("12:01", "13:03", 30, "beep")
 
 	schedulePlayer, testRecorder := createPlayer("12:13")
-	schedulePlayer.PlayCombo(combo)
+	schedulePlayer.playCombo(combo)
 
 	expectedPlayTimes := []string{
 		registerPlaySound("12:31:00", "beep"),
@@ -66,7 +70,7 @@ func TestPlayingComboStartBefore(t *testing.T) {
 	combo := createCombo("12:01", "13:03", 30, "howl")
 
 	schedulePlayer, testRecorder := createPlayer("11:21")
-	schedulePlayer.PlayCombo(combo)
+	schedulePlayer.playCombo(combo)
 
 	expectedPlayTimes := []string{
 		registerPlaySound("12:01:00", "howl"),
@@ -82,7 +86,7 @@ func TestPlayTodaysScheduleWithComboOverMiddayShouldPlayToEndOfComboThenStop(t *
 		createCombo("11:12", "12:40", 60, "cry")}
 
 	schedulePlayer, testRecorder := createPlayer("18:30")
-	schedulePlayer.PlayTodaysCombos(combos)
+	schedulePlayer.playTodaysCombos(combos)
 
 	expectedPlayTimes := []string{
 		registerPlaySound("19:00:00", "roar"),
@@ -98,7 +102,7 @@ func TestPlayTodaysScheduleShouldLoopBackToStartOfCombosIfRequired(t *testing.T)
 		createCombo("21:12", "22:00", 60, "tweet")}
 
 	schedulePlayer, testRecorder := createPlayer("18:30")
-	schedulePlayer.PlayTodaysCombos(combos)
+	schedulePlayer.playTodaysCombos(combos)
 
 	expectedPlayTimes := []string{
 		registerPlaySound("21:12:00", "tweet"),
@@ -131,7 +135,7 @@ func TestPlayComboWithMultipleSoundsIncludingSame(t *testing.T) {
 	addAnotherSound(&combos[0], 2, "meow")
 
 	schedulePlayer, testRecorder := createPlayer("17:59")
-	schedulePlayer.PlayTodaysCombos(combos)
+	schedulePlayer.playTodaysCombos(combos)
 
 	expectedPlayTimes := []string{
 		registerPlaySound("18:00:00", "roar"),

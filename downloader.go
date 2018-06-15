@@ -1,3 +1,7 @@
+// Copyright 2018 The Cacophony Project. All rights reserved.
+// Use of this source code is governed by the Apache License Version 2.0;
+// see the LICENSE file for further details.
+
 package main
 
 import (
@@ -17,6 +21,7 @@ type Downloader struct {
 }
 
 func NewDownloader() *Downloader {
+	//TODO: should return a null object if can't connect to server (api)
 	return &Downloader{api: nil}
 }
 
@@ -33,28 +38,13 @@ func (dl *Downloader) DownloadSchedule() (playlist.Schedule, error) {
 	}
 
 	log.Println("Getting schedule")
-	sch, err := dl.GetSchedule()
+	schedule, err := dl.GetSchedule()
 	if err != nil {
 		return playlist.Schedule{}, err
 	}
 
-	return sch, nil
-	// return sch, GetFilesFromSchedule(api, sch, filepath.Join(savePath, "files"))
-
+	return schedule, nil
 }
-
-// func DownloadSchedule(savePath string) (playlist.Schedule, error){
-//   log.Println("Getting schedule")
-
-// 	sch, err := GetSchedule(api)
-// 	if err != nil {
-// 	  return playlist.Schedule{}, err
-// 	}
-// 	log.Println(sch)
-// 	log.Println("Getting files")
-
-// 	return sch, GetFilesFromSchedule(api, sch, filepath.Join(savePath, "files"))
-// }
 
 // GetFilesFromSchedule will get all files from the IDs in the schedule and save to disk.
 func (dl *Downloader) GetFilesForSchedule(schedule playlist.Schedule, fileFolder string) (map[int]string, error) {
@@ -104,7 +94,7 @@ func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, refere
 				fileNameOnDisk := fileInfo.File.Details.Name + "-" + strFileId + fileExt
 
 				if err = dl.api.DownloadFile(fileInfo, filepath.Join(fileFolder, fileNameOnDisk)); err != nil {
-					log.Printf("Could not download file with id %s.  Error is %s. Downloading next file"+strFileId, err)
+					log.Printf("Could not download file with id %s.  Error is %s. Downloading next file", strFileId, err)
 				} else {
 					audioLibrary.AddFile(strFileId, fileNameOnDisk)
 				}

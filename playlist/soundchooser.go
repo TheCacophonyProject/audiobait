@@ -1,3 +1,7 @@
+// Copyright 2018 The Cacophony Project. All rights reserved.
+// Use of this source code is governed by the Apache License Version 2.0;
+// see the LICENSE file for further details.
+
 package playlist
 
 import (
@@ -38,6 +42,10 @@ func (chooser *SoundChooser) returnSound(soundId int) (int, string) {
 	chooser.previous = soundId
 	return soundId, chooser.allSounds[soundId]
 }
+
+// ChooseSound processes the sound choice and chooses a random file where necessary.
+// If successful it returns the file_id and path to the file on disk
+// If unsuccessful the returned file_id is zero.
 
 func (chooser *SoundChooser) ChooseSound(choice string) (int, string) {
 	if choice == "random" {
