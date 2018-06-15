@@ -30,35 +30,48 @@ func TestSameStartEnd(t *testing.T) {
 
 func TestStartLessThanEnd(t *testing.T) {
 	w := window.New(mkTime(9, 10), mkTime(17, 30))
+	interval := time.Duration(30 * time.Minute)
 
 	w.Now = mkNow(9, 9)
 	assert.False(t, w.Active())
 	assert.Equal(t, time.Minute, w.Until())
+	assert.Equal(t, time.Duration(-1), w.UntilNextInterval(interval))
+	assert.Equal(t, time.Duration(0), w.UntilEnd())
 
 	w.Now = mkNow(9, 10)
 	assert.True(t, w.Active())
 	assert.Equal(t, time.Duration(0), w.Until())
+	assert.Equal(t, time.Duration(30 * time.Minute), w.UntilNextInterval(interval))
 
 	w.Now = mkNow(12, 0)
 	assert.True(t, w.Active())
 	assert.Equal(t, time.Duration(0), w.Until())
+	assert.Equal(t, time.Duration(10 * time.Minute), w.UntilNextInterval(interval))
+	assert.Equal(t, time.Duration((5*60 + 30) * time.Minute), w.UntilEnd())
 
 	w.Now = mkNow(17, 30)
 	assert.True(t, w.Active())
 	assert.Equal(t, time.Duration(0), w.Until())
+	assert.Equal(t, time.Duration(-1), w.UntilNextInterval(interval))
+	assert.Equal(t, time.Duration(0), w.UntilEnd())
+	assert.Equal(t, time.Duration(0), w.UntilEnd())
 
 	w.Now = mkNow(17, 31)
 	assert.False(t, w.Active())
 	assert.Equal(t, 939*time.Minute, w.Until())
+	assert.Equal(t, time.Duration(-1), w.UntilNextInterval(interval))
+	assert.Equal(t, time.Duration(0), w.UntilEnd())
 }
 
 func TestStartGreaterThanEnd(t *testing.T) {
 	// Window goes over midnight
 	w := window.New(mkTime(22, 10), mkTime(9, 50))
+	interval := time.Duration(30 * time.Minute)
 
 	w.Now = mkNow(22, 9)
 	assert.False(t, w.Active())
 	assert.Equal(t, time.Minute, w.Until())
+	assert.Equal(t, time.Duration(-1), w.UntilNextInterval(interval))
 
 	w.Now = mkNow(22, 10)
 	assert.True(t, w.Active())
@@ -67,14 +80,18 @@ func TestStartGreaterThanEnd(t *testing.T) {
 	w.Now = mkNow(23, 59)
 	assert.True(t, w.Active())
 	assert.Equal(t, time.Duration(0), w.Until())
+	assert.Equal(t, time.Duration(11 * time.Minute), w.UntilNextInterval(interval))
+	assert.Equal(t, time.Duration((9*60 + 51) * time.Minute), w.UntilEnd())
 
 	w.Now = mkNow(0, 0)
 	assert.True(t, w.Active())
 	assert.Equal(t, time.Duration(0), w.Until())
+	assert.Equal(t, time.Duration(10 * time.Minute), w.UntilNextInterval(interval))
 
 	w.Now = mkNow(0, 1)
 	assert.True(t, w.Active())
 	assert.Equal(t, time.Duration(0), w.Until())
+	assert.Equal(t, time.Duration(9 * time.Minute), w.UntilNextInterval(interval))
 
 	w.Now = mkNow(2, 0)
 	assert.True(t, w.Active())
@@ -83,14 +100,17 @@ func TestStartGreaterThanEnd(t *testing.T) {
 	w.Now = mkNow(9, 49)
 	assert.True(t, w.Active())
 	assert.Equal(t, time.Duration(0), w.Until())
+	assert.Equal(t, time.Duration(time.Minute), w.UntilEnd())
 
 	w.Now = mkNow(9, 50)
 	assert.True(t, w.Active())
 	assert.Equal(t, time.Duration(0), w.Until())
+	assert.Equal(t, time.Duration(-1), w.UntilNextInterval(interval))
 
 	w.Now = mkNow(9, 51)
 	assert.False(t, w.Active())
 	assert.Equal(t, 739*time.Minute, w.Until())
+	assert.Equal(t, time.Duration(-1), w.UntilNextInterval(interval))
 }
 
 func mkTime(hour, minute int) time.Time {

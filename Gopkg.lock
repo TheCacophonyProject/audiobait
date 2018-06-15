@@ -5,13 +5,13 @@
   branch = "master"
   name = "github.com/TheCacophonyProject/window"
   packages = ["."]
-  revision = "4e801cea42c05fefe582a83e4455e88e62b8711a"
+  revision = "3a2d74f7fcf50ffc2057a83d74bcb12e0412e348"
 
 [[projects]]
   branch = "master"
   name = "github.com/alexflint/go-arg"
   packages = ["."]
-  revision = "0cc8e30fd64c8c71d094be299ad424da93ef9aed"
+  revision = "f7c0423bd11ee80ab81d25c6d46f492998af8547"
 
 [[projects]]
   branch = "master"
@@ -20,10 +20,28 @@
   revision = "e80c3b7ed292b052c7083b6fd7154a8422c33f65"
 
 [[projects]]
+  name = "github.com/davecgh/go-spew"
+  packages = ["spew"]
+  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
+  version = "v1.1.0"
+
+[[projects]]
   name = "github.com/godbus/dbus"
   packages = ["."]
   revision = "a389bdde4dd695d414e47b755e95e72b7826432c"
   version = "v4.1.0"
+
+[[projects]]
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
+  name = "github.com/stretchr/testify"
+  packages = ["assert"]
+  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
+  version = "v1.2.2"
 
 [[projects]]
   branch = "v1"
@@ -31,9 +49,15 @@
   packages = ["."]
   revision = "9f9df34309c04878acc86042b16630b0f696e1de"
 
+[[projects]]
+  name = "gopkg.in/yaml.v2"
+  packages = ["."]
+  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
+  version = "v2.2.1"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4aa8da1dea2de91ef2a51ae697d52ea41657dd1fe321f16025c9c28b79fbe822"
+  inputs-digest = "88ee550757a0a1c015b4813be02369d89787539373ad21c814d0f51617cfa43a"
   solver-name = "gps-cdcl"
   solver-version = 1

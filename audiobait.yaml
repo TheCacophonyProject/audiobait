@@ -5,12 +5,3 @@ audio-directory: /var/lib/audiobait
 # Sound card details
 card: 1
 volume-control: "Headphone"
-
-window-start: 20:00
-window-end: 07:00
-
-play:
-  file: something.ogg
-  burst-repeat: 3
-  intra-sleep: 3s
-  inter-sleep: 10m
