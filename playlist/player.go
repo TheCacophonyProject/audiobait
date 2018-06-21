@@ -109,7 +109,7 @@ func (sp SchedulePlayer) IsSoundPlayingDay(schedule Schedule) bool {
 		return true
 	}
 
-	todaysStart := sp.nextDayStart().Add(-24 * time.Hour)
+	todaysStart := sp.nextDayStart()
 	dayOfCycle := todaysStart.Day() % schedule.CycleLength()
 
 	return dayOfCycle < schedule.PlayNights
@@ -142,7 +142,6 @@ func (sp SchedulePlayer) playTodaysCombos(combos []Combo) {
 		sp.playCombo(combos[count])
 		count = (count + 1) % numberCombos
 		nextComboStart = sp.time.Now().Add(sp.createWindow(combos[count]).Until())
-		log.Printf("Next combo start %v", nextComboStart)
 	}
 	log.Println("Completed playing combos for today")
 }
@@ -167,20 +166,18 @@ func (sp SchedulePlayer) playCombo(combo Combo) bool {
 
 	every := time.Duration(combo.Every) * time.Second
 
-	for true {
+	for {
 		nextBurstSleep := win.UntilNextInterval(every)
 		if nextBurstSleep > time.Duration(-1) {
 			log.Print("Sleeping until next burst")
 			sp.time.Wait(nextBurstSleep)
 			sp.playSounds(combo, soundChooser)
 		} else {
-			log.Print("Played last burst, sleeping until end of window")
-			sp.time.Wait(win.UntilEnd())
+			log.Print("Played last burst, sleeping until near end of window")
+			sp.time.Wait(win.UntilEnd() - 3*time.Second) // Stop 3s early so we don't miss the start of the next interval
 			return true
 		}
 	}
-
-	return true
 }
 
 // createWindow creates a window with the times specified in the combo definition
