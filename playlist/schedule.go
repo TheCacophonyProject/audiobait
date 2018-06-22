@@ -13,6 +13,7 @@ type Schedule struct {
 	Description   string
 	ControlNights int
 	PlayNights    int
+	StartDay      int
 	Combos        []Combo
 	AllSounds     []int
 }

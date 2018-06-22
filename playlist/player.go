@@ -109,8 +109,17 @@ func (sp SchedulePlayer) IsSoundPlayingDay(schedule Schedule) bool {
 		return true
 	}
 
-	todaysStart := sp.nextDayStart()
-	dayOfCycle := todaysStart.Day() % schedule.CycleLength()
+	firstDay := schedule.StartDay
+	if firstDay < 1 {
+		firstDay = 1
+	}
+
+	todaysStart := sp.nextDayStart().Add(-24 * time.Hour)
+
+	dayOfCycle := (todaysStart.Day() - firstDay) % schedule.CycleLength()
+	if dayOfCycle < 0 {
+		dayOfCycle += schedule.CycleLength()
+	}
 
 	return dayOfCycle < schedule.PlayNights
 }
@@ -141,7 +150,11 @@ func (sp SchedulePlayer) playTodaysCombos(combos []Combo) {
 		log.Println("Playing combo...")
 		sp.playCombo(combos[count])
 		count = (count + 1) % numberCombos
-		nextComboStart = sp.time.Now().Add(sp.createWindow(combos[count]).Until())
+		if count > 1 {
+			nextComboStart = sp.time.Now().Add(sp.createWindow(combos[count]).Until())
+		} else {
+			nextComboStart = sp.time.Now().Add(sp.createWindow(combos[count]).Until())
+		}
 	}
 	log.Println("Completed playing combos for today")
 }
@@ -154,17 +167,25 @@ func (sp SchedulePlayer) nextDayStart() time.Time {
 
 // playCombo plays a single combo
 func (sp SchedulePlayer) playCombo(combo Combo) bool {
+	const StartOfIntervalFuzzyFactor = 3 * time.Second
 	win := sp.createWindow(combo)
 	soundChooser := NewSoundChooser(sp.allSounds)
 
+	every := time.Duration(combo.Every)
+	if every < 1 {
+		every = 1
+	}
+	every = every * time.Second
+
 	toWindow := win.Until()
-	if toWindow > time.Duration(0) {
+	if win.Until() > time.Duration(0) {
 		log.Printf("sleeping until next window (%s)", toWindow)
 		sp.time.Wait(toWindow)
 		sp.playSounds(combo, soundChooser)
+	} else if win.UntilNextInterval(every) > every-StartOfIntervalFuzzyFactor {
+		// If we have waited we might have missed the start by milliseconds
+		sp.playSounds(combo, soundChooser)
 	}
-
-	every := time.Duration(combo.Every) * time.Second
 
 	for {
 		nextBurstSleep := win.UntilNextInterval(every)
@@ -174,7 +195,7 @@ func (sp SchedulePlayer) playCombo(combo Combo) bool {
 			sp.playSounds(combo, soundChooser)
 		} else {
 			log.Print("Played last burst, sleeping until near end of window")
-			sp.time.Wait(win.UntilEnd() - 3*time.Second) // Stop 3s early so we don't miss the start of the next interval
+			sp.time.Wait(win.UntilEnd()) // Stop 3s early so we don't miss the start of the next interval
 			return true
 		}
 	}
