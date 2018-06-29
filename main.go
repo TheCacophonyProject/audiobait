@@ -5,6 +5,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 
 	"github.com/TheCacophonyProject/audiobait/playlist"
@@ -56,7 +57,7 @@ func runMain() error {
 		err = DownloadAndPlaySounds(conf.AudioDir, soundCard)
 		if err != nil {
 			// Wait until tomorrow.
-			log.Printf("Error playing sounds %v", err)
+			log.Printf("Error playing sounds: %v", err)
 			playlist.WaitUntilNextDay()
 		}
 	}
@@ -67,6 +68,10 @@ func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) erro
 	schedule, err := downloader.DownloadSchedule()
 	if err != nil {
 		return err
+	}
+
+	if len(schedule.Combos) == 0 {
+		return errors.New("No audio schedule for device, or no sounds to play in schedule.")
 	}
 
 	files, err := downloader.GetFilesForSchedule(schedule, audioDir)

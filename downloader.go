@@ -35,6 +35,7 @@ func (dl *Downloader) initiateAPI() error {
 func (dl *Downloader) DownloadSchedule() (playlist.Schedule, error) {
 	if err := dl.initiateAPI(); err != nil {
 		log.Printf("Could not connect to api. %s", err)
+		return playlist.Schedule{}, err
 	}
 
 	log.Println("Getting schedule")
