@@ -6,6 +6,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -16,49 +18,93 @@ import (
 	"github.com/TheCacophonyProject/audiobait/playlist"
 )
 
+const scheduleFilename = "schedule.json"
+const libraryFilename = "audiofilelibrary.txt"
+
 type Downloader struct {
-	api *api.CacophonyAPI
+	api      *api.CacophonyAPI
+	audioDir string
 }
 
-func NewDownloader() *Downloader {
-	//TODO: should return a null object if can't connect to server (api)
-	return &Downloader{api: nil}
-}
-
-func (dl *Downloader) initiateAPI() error {
-	log.Println("Connecting with API")
-	var err error
-	dl.api, err = api.Open("/etc/thermal-uploader.yaml")
-	return err
-}
-
-func (dl *Downloader) DownloadSchedule() (playlist.Schedule, error) {
-	if err := dl.initiateAPI(); err != nil {
-		log.Printf("Could not connect to api. %s", err)
-		return playlist.Schedule{}, err
-	}
-
-	log.Println("Getting schedule")
-	schedule, err := dl.GetSchedule()
-	if err != nil {
-		return playlist.Schedule{}, err
-	}
-
-	return schedule, nil
-}
-
-// GetFilesFromSchedule will get all files from the IDs in the schedule and save to disk.
-func (dl *Downloader) GetFilesForSchedule(schedule playlist.Schedule, fileFolder string) (map[int]string, error) {
-	referencedFiles := schedule.GetReferencedSounds()
-
-	err := os.MkdirAll(fileFolder, 0755)
-	if err != nil {
+func NewDownloader(audioPath string) (*Downloader, error) {
+	if err := createAudioPath(audioPath); err != nil {
 		return nil, err
 	}
 
-	audioLibrary := OpenLibrary(filepath.Join(fileFolder, "audiofilelibrary.txt"))
+	api := tryToInitiateAPI()
 
-	dl.downloadAllNewFiles(audioLibrary, referencedFiles, fileFolder)
+	return &Downloader{api: api, audioDir: audioPath}, nil
+}
+
+func createAudioPath(audioPath string) error {
+	err := os.MkdirAll(audioPath, 0755)
+	if err != nil {
+		return errors.New("Could not create audioDir.  " + err.Error())
+	}
+	return nil
+}
+
+func tryToInitiateAPI() *api.CacophonyAPI {
+	log.Println("Connecting with API")
+	api, err := api.Open("/etc/thermal-uploader.yaml")
+	if err != nil {
+		log.Printf("Failed to connect with API %s", err.Error())
+	}
+	return api
+}
+
+func (dl *Downloader) saveScheduleToDisk(jsonData []byte) error {
+	filepath := filepath.Join(dl.audioDir, scheduleFilename)
+	err := ioutil.WriteFile(filepath, jsonData, 0644)
+	return err
+}
+
+func (dl *Downloader) loadScheduleFromDisk() (playlist.Schedule, error) {
+	filepath := filepath.Join(dl.audioDir, scheduleFilename)
+	jsonData, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		return playlist.Schedule{}, err
+	}
+
+	var sr scheduleResponse
+	if err = json.Unmarshal(jsonData, &sr); err != nil {
+		return playlist.Schedule{}, err
+	}
+
+	return sr.Schedule, nil
+}
+
+func (dl *Downloader) GetTodaysSchedule() playlist.Schedule {
+
+	if dl.api != nil {
+		log.Println("Downloading schedule from server")
+		if schedule, err := dl.downloadSchedule(); err == nil {
+			// success!
+			return schedule
+		} else {
+			log.Printf("Failed to download schedule schedule: %s", err)
+		}
+	}
+
+	// otherwise try loading from disk
+	log.Println("Loading schedule from disk")
+	schedule, err := dl.loadScheduleFromDisk()
+	if err != nil {
+		log.Printf("Failed to load schedule from disk.  %s", err)
+	}
+
+	return schedule
+}
+
+// GetFilesFromSchedule will get all files from the IDs in the schedule and save to disk.
+func (dl *Downloader) GetFilesForSchedule(schedule playlist.Schedule) (map[int]string, error) {
+	referencedFiles := schedule.GetReferencedSounds()
+
+	audioLibrary := OpenLibrary(filepath.Join(dl.audioDir, libraryFilename))
+
+	if dl.api != nil {
+		dl.downloadAllNewFiles(audioLibrary, referencedFiles)
+	}
 
 	availableFiles := dl.listAvailableFiles(audioLibrary, referencedFiles)
 
@@ -76,7 +122,7 @@ func (dl *Downloader) listAvailableFiles(audioLibrary *AudioFileLibrary, referen
 	return availableFiles
 }
 
-func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, referencedFiles []int, fileFolder string) {
+func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, referencedFiles []int) {
 	log.Println("Starting downloading audio files.")
 	for _, fileId := range referencedFiles {
 		strFileId := strconv.Itoa(fileId)
@@ -94,7 +140,7 @@ func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, refere
 				}
 				fileNameOnDisk := fileInfo.File.Details.Name + "-" + strFileId + fileExt
 
-				if err = dl.api.DownloadFile(fileInfo, filepath.Join(fileFolder, fileNameOnDisk)); err != nil {
+				if err = dl.api.DownloadFile(fileInfo, filepath.Join(dl.audioDir, fileNameOnDisk)); err != nil {
 					log.Printf("Could not download file with id %s.  Error is %s. Downloading next file", strFileId, err)
 				} else {
 					audioLibrary.AddFile(strFileId, fileNameOnDisk)
@@ -106,7 +152,7 @@ func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, refere
 }
 
 // GetSchedule will get the audio schedule
-func (dl *Downloader) GetSchedule() (playlist.Schedule, error) {
+func (dl *Downloader) downloadSchedule() (playlist.Schedule, error) {
 	jsonData, err := dl.api.GetSchedule()
 	if err != nil {
 		return playlist.Schedule{}, err
@@ -119,6 +165,10 @@ func (dl *Downloader) GetSchedule() (playlist.Schedule, error) {
 		return playlist.Schedule{}, err
 	}
 	log.Println("Audio schedule parsed sucessfully")
+
+	if err := dl.saveScheduleToDisk(jsonData); err != nil {
+		log.Printf("Failed to save schedule to disk.  Error %s.", err)
+	}
 
 	return sr.Schedule, nil
 }

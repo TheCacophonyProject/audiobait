@@ -64,22 +64,22 @@ func runMain() error {
 }
 
 func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) error {
-	downloader := NewDownloader()
-	schedule, err := downloader.DownloadSchedule()
+	downloader, err := NewDownloader(audioDir)
 	if err != nil {
 		return err
 	}
 
+	schedule := downloader.GetTodaysSchedule()
 	if len(schedule.Combos) == 0 {
 		return errors.New("No audio schedule for device, or no sounds to play in schedule.")
 	}
 
-	files, err := downloader.GetFilesForSchedule(schedule, audioDir)
+	files, err := downloader.GetFilesForSchedule(schedule)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Playing sounds")
+	log.Printf("Playing todays audiobait schedule...")
 	player := playlist.NewPlayer(soundCard, files, audioDir)
 	player.PlayTodaysSchedule(schedule)
 	return nil
