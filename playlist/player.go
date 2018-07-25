@@ -26,6 +26,12 @@ type Clock interface {
 	Wait(time.Duration)
 }
 
+// SoundPlayedRecorder gets a notification when a sound has been played.
+type SoundPlayedRecorder interface {
+	// OnBaitPlayed is called when the device believes audobait has been played
+	OnAudioBaitPlayed(ts time.Time, fileId int, volume int)
+}
+
 // ActualClock uses the standard go time.
 type ActualClock struct{}
 
@@ -40,8 +46,9 @@ func (t *ActualClock) Wait(duration time.Duration) {
 
 // SchedulePlayer takes a schedule and a bunch of audio files and plays them at the times specified on the schedule.
 type SchedulePlayer struct {
-	player AudioDevice
-	time   Clock
+	player   AudioDevice
+	time     Clock
+	recorder SoundPlayedRecorder
 	// allSounds is a map of audio file ID to name of audio file on disk
 	allSounds map[int]string
 	filesDir  string
@@ -98,6 +105,11 @@ func (sp SchedulePlayer) findNextCombo(combos []Combo) int {
 	}
 
 	return nextIndex
+}
+
+// SetRecorder sets the call back that records when a sound has successfully played
+func (sp *SchedulePlayer) SetRecorder(recorder SoundPlayedRecorder) {
+	sp.recorder = recorder
 }
 
 // IsSoundPlayingDay works out whether sounds should be played today.
@@ -216,9 +228,13 @@ func (sp SchedulePlayer) playSounds(combo Combo, chooser *SoundChooser) {
 		file_id, soundFilename := chooser.ChooseSound(combo.Sounds[count])
 		if file_id > 0 {
 			soundFilePath := filepath.Join(sp.filesDir, soundFilename)
+			volume := combo.Volumes[count]
+			now := sp.time.Now()
 			log.Printf("Playing sound %s", soundFilePath)
-			if err := sp.player.Play(soundFilePath, combo.Volumes[count]); err != nil {
+			if err := sp.player.Play(soundFilePath, volume); err != nil {
 				log.Printf("Play failed: %v", err)
+			} else if sp.recorder != nil {
+				sp.recorder.OnAudioBaitPlayed(now, file_id, volume)
 			}
 		} else {
 			log.Printf("Could not play %s.  Either sound does not exist or this option cannot be parsed.", combo.Sounds[count])
