@@ -162,11 +162,7 @@ func (sp SchedulePlayer) playTodaysCombos(combos []Combo) {
 		log.Println("Playing combo...")
 		sp.playCombo(combos[count])
 		count = (count + 1) % numberCombos
-		if count > 1 {
-			nextComboStart = sp.time.Now().Add(sp.createWindow(combos[count]).Until())
-		} else {
-			nextComboStart = sp.time.Now().Add(sp.createWindow(combos[count]).Until())
-		}
+		nextComboStart = sp.time.Now().Add(sp.createWindow(combos[count]).Until())
 	}
 	log.Println("Completed playing combos for today")
 }
@@ -179,7 +175,7 @@ func (sp SchedulePlayer) nextDayStart() time.Time {
 
 // playCombo plays a single combo
 func (sp SchedulePlayer) playCombo(combo Combo) bool {
-	const StartOfIntervalFuzzyFactor = 3 * time.Second
+	const startOfIntervalFuzzyFactor = 3 * time.Second
 	win := sp.createWindow(combo)
 	soundChooser := NewSoundChooser(sp.allSounds)
 
@@ -194,7 +190,7 @@ func (sp SchedulePlayer) playCombo(combo Combo) bool {
 		log.Printf("sleeping until next window (%s)", toWindow)
 		sp.time.Wait(toWindow)
 		sp.playSounds(combo, soundChooser)
-	} else if win.UntilNextInterval(every) > every-StartOfIntervalFuzzyFactor {
+	} else if win.UntilNextInterval(every) > every-startOfIntervalFuzzyFactor {
 		// If we have waited we might have missed the start by milliseconds
 		sp.playSounds(combo, soundChooser)
 	}
