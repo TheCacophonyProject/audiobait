@@ -5,6 +5,7 @@
 package playlist
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"testing"
@@ -20,15 +21,16 @@ var soundFiles = map[int]string{
 }
 
 type TestClockAndAudioDevice struct {
-	NowTime   time.Time
-	PlayTimes []string
+	NowTime     time.Time
+	PlayTimes   []string
+	ErrorOnPlay bool
 }
 
 func (p *TestClockAndAudioDevice) Play(audioFileName string, _ int) error {
-	nowTimeAsString := fmt.Sprintf("%02d:%02d:%02d", p.NowTime.Hour(), p.NowTime.Minute(), p.NowTime.Second())
-	playingString := registerPlaySound(nowTimeAsString, audioFileName)
-	p.PlayTimes = append(p.PlayTimes, playingString)
-	fmt.Println(playingString)
+	if p.ErrorOnPlay {
+		fmt.Println("Did not play sound")
+		return errors.New("Pretending to not play successfully")
+	}
 	return nil
 }
 
@@ -40,6 +42,18 @@ func (t *TestClockAndAudioDevice) Wait(duration time.Duration) {
 	t.NowTime = t.NowTime.Add(duration).Add(time.Microsecond)
 }
 
+func (t *TestClockAndAudioDevice) SetDay(day int, month time.Month) {
+	now := t.NowTime
+	t.NowTime = time.Date(1, month, day, now.Hour(), now.Minute(), now.Second(), 0, time.UTC)
+}
+
+func (t *TestClockAndAudioDevice) OnAudioBaitPlayed(ts time.Time, fileId int, volume int) {
+	nowTimeAsString := fmt.Sprintf("%02d:%02d:%02d", ts.Hour(), ts.Minute(), ts.Second())
+	playingString := registerPlaySound(nowTimeAsString, soundFiles[fileId])
+	t.PlayTimes = append(t.PlayTimes, playingString)
+	fmt.Println(playingString)
+}
+
 func registerPlaySound(playTime, audioFileName string) string {
 	return fmt.Sprintf("%s: Playing %s", playTime, audioFileName)
 }
@@ -48,7 +62,9 @@ func createPlayer(startTime string) (*SchedulePlayer, *TestClockAndAudioDevice) 
 	testPlayerAndTimer := new(TestClockAndAudioDevice)
 	testPlayerAndTimer.PlayTimes = make([]string, 0, 10)
 	testPlayerAndTimer.NowTime = NewTimeOfDay(startTime).Time
+	testPlayerAndTimer.ErrorOnPlay = false
 	scheduleplayer := newSchedulePlayerWithClock(testPlayerAndTimer, testPlayerAndTimer, soundFiles, "")
+	scheduleplayer.SetRecorder(testPlayerAndTimer)
 	return scheduleplayer, testPlayerAndTimer
 }
 
@@ -120,11 +136,52 @@ func TestScheduleWithZeroControlNightsAlwaysPlays(t *testing.T) {
 	assert.Equal(t, true, schedulePlayer.IsSoundPlayingDay(schedule))
 }
 
-func TestScheduleWithControlDaysOnlyPlaysOneEarlyDays(t *testing.T) {
-	schedule := Schedule{ControlNights: 5, PlayNights: 2}
-	schedulePlayer, _ := createPlayer("12:01")
+func checkPlaysOn(day int, month time.Month, t *testing.T, schedule Schedule, schedulePlayer *SchedulePlayer, clock *TestClockAndAudioDevice) {
+	clock.SetDay(day, month)
+	if !schedulePlayer.IsSoundPlayingDay(schedule) {
+		t.Error(fmt.Sprintf("Expected sound to play on day %d of %v", day, month))
+	}
+}
 
-	assert.Equal(t, true, schedulePlayer.IsSoundPlayingDay(schedule))
+func checkSilentOn(day int, month time.Month, t *testing.T, schedule Schedule, schedulePlayer *SchedulePlayer, clock *TestClockAndAudioDevice) {
+	clock.SetDay(day, month)
+	if schedulePlayer.IsSoundPlayingDay(schedule) {
+		t.Error(fmt.Sprintf("Expected no sound (control day) on day %d of %v", day, month))
+	}
+}
+
+func TestScheduleWithControlDaysOnlyPlaysOnPlayingDays(t *testing.T) {
+	schedule := Schedule{ControlNights: 5, PlayNights: 2, StartDay: 3}
+	schedulePlayer, clock := createPlayer("17:01")
+
+	checkSilentOn(1, time.April, t, schedule, schedulePlayer, clock)
+	checkSilentOn(2, time.April, t, schedule, schedulePlayer, clock)
+	checkPlaysOn(3, time.April, t, schedule, schedulePlayer, clock)
+	checkPlaysOn(4, time.April, t, schedule, schedulePlayer, clock)
+	checkSilentOn(5, time.April, t, schedule, schedulePlayer, clock)
+	checkSilentOn(6, time.April, t, schedule, schedulePlayer, clock)
+	checkSilentOn(7, time.April, t, schedule, schedulePlayer, clock)
+	checkSilentOn(9, time.April, t, schedule, schedulePlayer, clock)
+	checkPlaysOn(10, time.April, t, schedule, schedulePlayer, clock)
+	checkPlaysOn(17, time.April, t, schedule, schedulePlayer, clock)
+
+	schedule = Schedule{ControlNights: 3, PlayNights: 2, StartDay: 19}
+	schedulePlayer, clock = createPlayer("17:01")
+
+	checkSilentOn(18, time.April, t, schedule, schedulePlayer, clock)
+	checkPlaysOn(19, time.April, t, schedule, schedulePlayer, clock)
+	checkPlaysOn(20, time.April, t, schedule, schedulePlayer, clock)
+	checkSilentOn(21, time.April, t, schedule, schedulePlayer, clock)
+	checkSilentOn(3, time.April, t, schedule, schedulePlayer, clock)
+	checkPlaysOn(4, time.April, t, schedule, schedulePlayer, clock)
+
+	// check if StartDay not defined
+	schedule = Schedule{ControlNights: 3, PlayNights: 2}
+	schedulePlayer, clock = createPlayer("17:01")
+
+	checkPlaysOn(1, time.April, t, schedule, schedulePlayer, clock)
+	checkPlaysOn(2, time.April, t, schedule, schedulePlayer, clock)
+	checkSilentOn(3, time.April, t, schedule, schedulePlayer, clock)
 }
 
 func TestPlayComboWithMultipleSoundsIncludingSame(t *testing.T) {
@@ -154,6 +211,18 @@ func TestFindNextCombo(t *testing.T) {
 		createCombo("03:12", "06:12", 60, "c")}
 	schedulePlayer, _ := createPlayer("12:13")
 	fmt.Print(combos[schedulePlayer.findNextCombo(combos)])
+}
+
+func TestRecorderIsNotCalledWhenSoundIsNotPlayed(t *testing.T) {
+	combo := createCombo("12:01", "13:03", 30, "howl")
+
+	schedulePlayer, testRecorder := createPlayer("12:10")
+	testRecorder.ErrorOnPlay = true
+	schedulePlayer.playCombo(combo)
+
+	expectedPlayedTimes := []string{}
+
+	assert.Equal(t, testRecorder.PlayTimes, expectedPlayedTimes)
 }
 
 func createCombo(timeStart, timeEnd string, everyMinutes int, soundName string) Combo {

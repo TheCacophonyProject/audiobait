@@ -26,6 +26,12 @@ type Clock interface {
 	Wait(time.Duration)
 }
 
+// SoundPlayedRecorder gets a notification when a sound has been played.
+type SoundPlayedRecorder interface {
+	// OnBaitPlayed is called when the device believes audobait has been played
+	OnAudioBaitPlayed(ts time.Time, fileId int, volume int)
+}
+
 // ActualClock uses the standard go time.
 type ActualClock struct{}
 
@@ -40,8 +46,9 @@ func (t *ActualClock) Wait(duration time.Duration) {
 
 // SchedulePlayer takes a schedule and a bunch of audio files and plays them at the times specified on the schedule.
 type SchedulePlayer struct {
-	player AudioDevice
-	time   Clock
+	player   AudioDevice
+	time     Clock
+	recorder SoundPlayedRecorder
 	// allSounds is a map of audio file ID to name of audio file on disk
 	allSounds map[int]string
 	filesDir  string
@@ -100,6 +107,11 @@ func (sp SchedulePlayer) findNextCombo(combos []Combo) int {
 	return nextIndex
 }
 
+// SetRecorder sets the call back that records when a sound has successfully played
+func (sp *SchedulePlayer) SetRecorder(recorder SoundPlayedRecorder) {
+	sp.recorder = recorder
+}
+
 // IsSoundPlayingDay works out whether sounds should be played today.
 // Having control days when we play no sound, helps to make sure that we canaccurately determine whether
 // sounds are attracting more animals or not.   They may also help stop animals getting
@@ -109,8 +121,17 @@ func (sp SchedulePlayer) IsSoundPlayingDay(schedule Schedule) bool {
 		return true
 	}
 
+	firstDay := schedule.StartDay
+	if firstDay < 1 {
+		firstDay = 1
+	}
+
 	todaysStart := sp.nextDayStart().Add(-24 * time.Hour)
-	dayOfCycle := todaysStart.Day() % schedule.CycleLength()
+
+	dayOfCycle := (todaysStart.Day() - firstDay) % schedule.CycleLength()
+	if dayOfCycle < 0 {
+		dayOfCycle += schedule.CycleLength()
+	}
 
 	return dayOfCycle < schedule.PlayNights
 }
@@ -142,7 +163,6 @@ func (sp SchedulePlayer) playTodaysCombos(combos []Combo) {
 		sp.playCombo(combos[count])
 		count = (count + 1) % numberCombos
 		nextComboStart = sp.time.Now().Add(sp.createWindow(combos[count]).Until())
-		log.Printf("Next combo start %v", nextComboStart)
 	}
 	log.Println("Completed playing combos for today")
 }
@@ -155,32 +175,38 @@ func (sp SchedulePlayer) nextDayStart() time.Time {
 
 // playCombo plays a single combo
 func (sp SchedulePlayer) playCombo(combo Combo) bool {
+	const startOfIntervalFuzzyFactor = 3 * time.Second
 	win := sp.createWindow(combo)
 	soundChooser := NewSoundChooser(sp.allSounds)
 
+	every := time.Duration(combo.Every)
+	if every < 1 {
+		every = 1
+	}
+	every = every * time.Second
+
 	toWindow := win.Until()
-	if toWindow > time.Duration(0) {
+	if win.Until() > time.Duration(0) {
 		log.Printf("sleeping until next window (%s)", toWindow)
 		sp.time.Wait(toWindow)
 		sp.playSounds(combo, soundChooser)
+	} else if win.UntilNextInterval(every) > every-startOfIntervalFuzzyFactor {
+		// If we have waited we might have missed the start by milliseconds
+		sp.playSounds(combo, soundChooser)
 	}
 
-	every := time.Duration(combo.Every) * time.Second
-
-	for true {
+	for {
 		nextBurstSleep := win.UntilNextInterval(every)
 		if nextBurstSleep > time.Duration(-1) {
 			log.Print("Sleeping until next burst")
 			sp.time.Wait(nextBurstSleep)
 			sp.playSounds(combo, soundChooser)
 		} else {
-			log.Print("Played last burst, sleeping until end of window")
-			sp.time.Wait(win.UntilEnd())
+			log.Print("Played last burst, sleeping until near end of window")
+			sp.time.Wait(win.UntilEnd()) // Stop 3s early so we don't miss the start of the next interval
 			return true
 		}
 	}
-
-	return true
 }
 
 // createWindow creates a window with the times specified in the combo definition
@@ -198,9 +224,13 @@ func (sp SchedulePlayer) playSounds(combo Combo, chooser *SoundChooser) {
 		file_id, soundFilename := chooser.ChooseSound(combo.Sounds[count])
 		if file_id > 0 {
 			soundFilePath := filepath.Join(sp.filesDir, soundFilename)
+			volume := combo.Volumes[count]
+			now := sp.time.Now()
 			log.Printf("Playing sound %s", soundFilePath)
-			if err := sp.player.Play(soundFilePath, combo.Volumes[count]); err != nil {
+			if err := sp.player.Play(soundFilePath, volume); err != nil {
 				log.Printf("Play failed: %v", err)
+			} else if sp.recorder != nil {
+				sp.recorder.OnAudioBaitPlayed(now, file_id, volume)
 			}
 		} else {
 			log.Printf("Could not play %s.  Either sound does not exist or this option cannot be parsed.", combo.Sounds[count])
