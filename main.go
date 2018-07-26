@@ -81,6 +81,7 @@ func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) erro
 
 	log.Printf("Playing todays audiobait schedule...")
 	player := playlist.NewPlayer(soundCard, files, audioDir)
+	player.SetRecorder(AudioBaitEventRecorder{})
 	player.PlayTodaysSchedule(schedule)
 	return nil
 }
