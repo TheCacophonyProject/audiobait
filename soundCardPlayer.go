@@ -6,7 +6,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"log"
 	"os/exec"
 	"path/filepath"
 	"time"
@@ -47,11 +47,11 @@ func (p *SoundCardPlayer) setVolume(volume int) error {
 
 func (p *SoundCardPlayer) play(filename string) error {
 	cmd := exec.Command("play", "-q", filename)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("AUDIODEV=hw:%d", p.card))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("play failed: %v\noutput:\n%s", err, out)
 	}
+
 	return nil
 }
 

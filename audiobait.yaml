@@ -5,3 +5,7 @@ audio-directory: /var/lib/audiobait
 # Sound card details
 card: 1
 volume-control: "Headphone"
+
+# For raspbery-pi external speaker
+# card: 0
+# volume-control: "PCM"
