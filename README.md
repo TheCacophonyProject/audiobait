@@ -1,5 +1,7 @@
 # audiobait
 
+[![Build Status](https://api.travis-ci.com/TheCacophonyProject/audiobait.svg?branch=master)](https://travis-ci.com/TheCacophonyProject/audiobait)
+
 `audiobait` plays audio files on a configurable schedule. The audio
 files played are reported as events to the Cacophony Project [Events
 API](https://api.cacophony.org.nz/#api-Events-Add_Event) (via
