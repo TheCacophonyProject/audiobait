@@ -240,7 +240,7 @@ func (sp SchedulePlayer) playSounds(combo Combo, chooser *SoundChooser) {
 			soundFilePath := filepath.Join(sp.filesDir, soundFilename)
 			volume := combo.Volumes[count]
 			now := sp.time.Now()
-			log.Printf("Playing sound %s", soundFilePath)
+			log.Printf("Playing sound %s at volume level %d", soundFilePath, volume)
 			if err := sp.player.Play(soundFilePath, volume); err != nil {
 				log.Printf("Play failed: %v", err)
 			} else if sp.recorder != nil {
