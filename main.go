@@ -22,8 +22,9 @@ import (
 	"errors"
 	"log"
 
-	"github.com/TheCacophonyProject/audiobait/playlist"
 	arg "github.com/alexflint/go-arg"
+
+	"github.com/TheCacophonyProject/audiobait/playlist"
 )
 
 // version is populated at link time via goreleaser

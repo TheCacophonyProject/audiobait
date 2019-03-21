@@ -3,6 +3,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/TheCacophonyProject/go-api"
+  packages = ["."]
+  revision = "1ccbd4981ef19335573e6a48c3d69d31fb5514c5"
+
+[[projects]]
+  branch = "master"
   name = "github.com/TheCacophonyProject/window"
   packages = ["."]
   revision = "3a2d74f7fcf50ffc2057a83d74bcb12e0412e348"
@@ -32,6 +38,12 @@
   version = "v4.1.0"
 
 [[projects]]
+  name = "github.com/gofrs/flock"
+  packages = ["."]
+  revision = "392e7fae8f1b0bdbd67dad7237d23f618feb6dbb"
+  version = "v0.7.1"
+
+[[projects]]
   name = "github.com/pmezard/go-difflib"
   packages = ["difflib"]
   revision = "792786c7400a136282c1664665ae0a8db921c6c2"
@@ -52,12 +64,12 @@
 [[projects]]
   name = "gopkg.in/yaml.v2"
   packages = ["."]
-  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
-  version = "v2.2.1"
+  revision = "51d6538a90f86fe93ac480b35f37b2be17fef232"
+  version = "v2.2.2"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "88ee550757a0a1c015b4813be02369d89787539373ad21c814d0f51617cfa43a"
+  inputs-digest = "7a4181452a7222ca80b3708220d19848c4574d186f76df4404919d03d4ae0b4b"
   solver-name = "gps-cdcl"
   solver-version = 1
