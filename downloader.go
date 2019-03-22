@@ -28,7 +28,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/TheCacophonyProject/audiobait/api"
+	"github.com/TheCacophonyProject/go-api"
+
 	"github.com/TheCacophonyProject/audiobait/playlist"
 )
 
@@ -60,7 +61,7 @@ func createAudioPath(audioPath string) error {
 
 func tryToInitiateAPI() *api.CacophonyAPI {
 	log.Println("Connecting with API")
-	api, err := api.Open("/etc/thermal-uploader.yaml")
+	api, err := api.NewAPIFromConfig("/etc/thermal-uploader.yaml")
 	if err != nil {
 		log.Printf("Failed to connect with API %s", err.Error())
 	}
