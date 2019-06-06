@@ -31,6 +31,7 @@ import (
 	"github.com/TheCacophonyProject/go-api"
 
 	"github.com/TheCacophonyProject/audiobait/playlist"
+	"github.com/TheCacophonyProject/modemd/connrequester"
 )
 
 const scheduleFilename = "schedule.json"
@@ -39,6 +40,7 @@ const libraryFilename = "audiofilelibrary.txt"
 type Downloader struct {
 	api      *api.CacophonyAPI
 	audioDir string
+	cr       *connrequester.ConnectionRequester
 }
 
 func NewDownloader(audioPath string) (*Downloader, error) {

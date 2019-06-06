@@ -11,6 +11,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:663b1a545662bd83dd760b23b6215ff69b35dc29961a83243f6473e60830fb58"
+  name = "github.com/TheCacophonyProject/modemd"
+  packages = ["connrequester"]
+  pruneopts = ""
+  revision = "ae5b0f2eb76015727631b223fe2c509a7bd615db"
+
+[[projects]]
+  branch = "master"
   digest = "1:570dabd29492a1dfc9452ce02719d114570ea75cca59fe276991845a0b3ca836"
   name = "github.com/TheCacophonyProject/window"
   packages = ["."]
@@ -94,6 +102,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/TheCacophonyProject/go-api",
+    "github.com/TheCacophonyProject/modemd/connrequester",
     "github.com/TheCacophonyProject/window",
     "github.com/alexflint/go-arg",
     "github.com/godbus/dbus",
