@@ -3,73 +3,102 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:a10b52a8de7bc2acc45d474b0cc28484be69d2e37470bf76bb20baec08357b63"
   name = "github.com/TheCacophonyProject/go-api"
   packages = ["."]
+  pruneopts = ""
   revision = "1ccbd4981ef19335573e6a48c3d69d31fb5514c5"
 
 [[projects]]
   branch = "master"
+  digest = "1:570dabd29492a1dfc9452ce02719d114570ea75cca59fe276991845a0b3ca836"
   name = "github.com/TheCacophonyProject/window"
   packages = ["."]
+  pruneopts = ""
   revision = "3a2d74f7fcf50ffc2057a83d74bcb12e0412e348"
 
 [[projects]]
   branch = "master"
+  digest = "1:c3041f49cae4ad48d7a5ad28a19b57a60e26284cff0af4d4bba3b7ec116e79da"
   name = "github.com/alexflint/go-arg"
   packages = ["."]
+  pruneopts = ""
   revision = "f7c0423bd11ee80ab81d25c6d46f492998af8547"
 
 [[projects]]
   branch = "master"
+  digest = "1:d685b3da1fa270912d06e97f577632540a52fcf26048a3a46215c3ce5218e56f"
   name = "github.com/alexflint/go-scalar"
   packages = ["."]
+  pruneopts = ""
   revision = "e80c3b7ed292b052c7083b6fd7154a8422c33f65"
 
 [[projects]]
+  digest = "1:56c130d885a4aacae1dd9c7b71cfe39912c7ebc1ff7d2b46083c8812996dc43b"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
+  pruneopts = ""
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
   version = "v1.1.0"
 
 [[projects]]
+  digest = "1:e772845668c277db6fcc8c6fcf31664c74851f6cce4d225be4f4adbee3861057"
   name = "github.com/godbus/dbus"
   packages = ["."]
+  pruneopts = ""
   revision = "a389bdde4dd695d414e47b755e95e72b7826432c"
   version = "v4.1.0"
 
 [[projects]]
+  digest = "1:a4724325f1d3bd4127dac415e980c7c28f2e08f4d0ba2513e7de9980906604ef"
   name = "github.com/gofrs/flock"
   packages = ["."]
+  pruneopts = ""
   revision = "392e7fae8f1b0bdbd67dad7237d23f618feb6dbb"
   version = "v0.7.1"
 
 [[projects]]
+  digest = "1:256484dbbcd271f9ecebc6795b2df8cad4c458dd0f5fd82a8c2fa0c29f233411"
   name = "github.com/pmezard/go-difflib"
   packages = ["difflib"]
+  pruneopts = ""
   revision = "792786c7400a136282c1664665ae0a8db921c6c2"
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:c587772fb8ad29ad4db67575dad25ba17a51f072ff18a22b4f0257a4d9c24f75"
   name = "github.com/stretchr/testify"
   packages = ["assert"]
+  pruneopts = ""
   revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
   version = "v1.2.2"
 
 [[projects]]
   branch = "v1"
+  digest = "1:d6dfc13bd1ac289efe8d7d267ccb0d34dc6a6e55703a228cdea1848f5b2dc529"
   name = "gopkg.in/yaml.v1"
   packages = ["."]
+  pruneopts = ""
   revision = "9f9df34309c04878acc86042b16630b0f696e1de"
 
 [[projects]]
+  digest = "1:cedccf16b71e86db87a24f8d4c70b0a855872eb967cb906a66b95de56aefbd0d"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
+  pruneopts = ""
   revision = "51d6538a90f86fe93ac480b35f37b2be17fef232"
   version = "v2.2.2"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9080b6db80c85ce81a2e774b7b40ef3d31825b1d638acfa41765fc53289c62d7"
+  input-imports = [
+    "github.com/TheCacophonyProject/go-api",
+    "github.com/TheCacophonyProject/window",
+    "github.com/alexflint/go-arg",
+    "github.com/godbus/dbus",
+    "github.com/stretchr/testify/assert",
+    "gopkg.in/yaml.v1",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
