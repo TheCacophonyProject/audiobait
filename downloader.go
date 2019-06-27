@@ -60,7 +60,7 @@ func createAudioPath(audioPath string) error {
 
 func tryToInitiateAPI() *api.CacophonyAPI {
 	log.Println("Connecting with API")
-	api, err := api.NewAPI())
+	api, err := api.NewAPI()
 	if err != nil {
 		log.Printf("Failed to connect with API %s", err.Error())
 	}
