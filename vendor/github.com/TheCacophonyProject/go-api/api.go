@@ -44,6 +44,7 @@ type CacophonyDevice struct {
 	group    string
 	name     string
 	password string
+	id       int
 }
 
 type CacophonyAPI struct {
@@ -85,80 +86,85 @@ func (api *CacophonyAPI) JustRegistered() bool {
 	return api.justRegistered
 }
 
-// NewAPIFromConfig prases the supplied configFile and creates a new CacophonyAPI with the configFile information
-// and saves the generated password to privConfigFileName(configFile)
-func NewAPIFromConfig(configFile string) (*CacophonyAPI, error) {
-	conf, err := ParseConfigFile(configFile)
+// NewAPI parses device.yaml, and creates a new CacophonyAPI
+// and saves the generated password and ID to device-priv.yaml
+func NewAPI() (*CacophonyAPI, error) {
+	conf, err := LoadConfig()
 	if err != nil {
 		return nil, fmt.Errorf("configuration error: %v", err)
 	}
-	privConfigFilename := privConfigFilename(configFile)
-	confPassword := NewConfigPassword(privConfigFilename)
+	return apiFromConfig(conf)
+}
 
-	password, err := confPassword.ReadPassword()
+// apiFromConfig creates CacophonyAPI from Config and register/authenticates
+// saving the password if necessary
+func apiFromConfig(conf *Config) (*CacophonyAPI, error) {
+
+	lockSafeConfig := NewLockSafeConfig(RegisteredConfigPath)
+	_, err := lockSafeConfig.Read()
 	if err != nil {
 		return nil, err
 	}
 
-	if password == "" {
-		locked, err := confPassword.GetExLock()
+	if lockSafeConfig.config == nil || !lockSafeConfig.config.IsValid() {
+		locked, err := lockSafeConfig.GetExLock()
 		if locked == false || err != nil {
 			return nil, err
 		}
-		defer confPassword.Unlock()
+		defer lockSafeConfig.Unlock()
 
-		//read again incase was just written to while waiting for exlock
-		password, err = confPassword.ReadPassword()
+		//read again in case was just written to while waiting for exlock
+		_, err = lockSafeConfig.Read()
 		if err != nil {
 			return nil, err
 		}
-	}
-	api, err := NewAPI(conf.ServerURL, conf.Group, conf.DeviceName, password)
-	if err != nil {
-		return nil, err
-	}
-
-	if api.JustRegistered() {
-		err := confPassword.WritePassword(api.Password())
-		if err != nil {
-			return nil, err
-		}
-	}
-	return api, nil
-}
-
-// createAPI creates a CacophonyAPI instance and obtains a fresh JSON Web
-// Token. If no password is given then the device is registered.
-func NewAPI(serverURL, group, deviceName, password string) (*CacophonyAPI, error) {
-
-	if deviceName == "" {
-		return nil, errors.New("no device name")
 	}
 
 	device := &CacophonyDevice{
-		group:    group,
-		name:     deviceName,
-		password: password,
+		group: conf.Group,
+		name:  conf.DeviceName,
+	}
+	if lockSafeConfig.config != nil {
+		device.password = lockSafeConfig.config.Password
+		device.id = lockSafeConfig.config.DeviceID
 	}
 
 	api := &CacophonyAPI{
-		serverURL:  serverURL,
+		serverURL:  conf.ServerURL,
 		device:     device,
 		httpClient: newHTTPClient(),
 	}
 
-	if device.password == "" {
+	err = api.registerOrAuthenticate(lockSafeConfig)
+	return api, err
+}
+
+// createAPI creates a CacophonyAPI instance and obtains a fresh JSON Web
+// Token. If no password is given then the device is registered.
+func (api *CacophonyAPI) registerOrAuthenticate(lockSafeConfig *LockSafeConfig) error {
+	if api.device.password == "" {
 		err := api.register()
 		if err != nil {
-			return nil, err
+			return err
 		}
+		err = lockSafeConfig.Write(api.device.id, api.Password())
+		if err != nil {
+			return err
+		}
+
 	} else {
 		err := api.authenticate()
 		if err != nil {
-			return nil, err
+			return err
+		}
+		if lockSafeConfig.config.DeviceID == 0 && api.device.id > 0 {
+			err = lockSafeConfig.Write(api.device.id, api.Password())
+			if err != nil {
+				return err
+			}
 		}
 	}
-	return api, nil
+	return nil
 }
 
 // authenticate a device with Cacophony API and retrieves the token
@@ -167,10 +173,18 @@ func (api *CacophonyAPI) authenticate() error {
 	if api.device.password == "" {
 		return errors.New("no password set")
 	}
-	payload, err := json.Marshal(map[string]string{
-		"devicename": api.device.name,
-		"password":   api.device.password,
-	})
+
+	data := map[string]interface{}{
+		"password": api.device.password,
+	}
+	if api.device.id > 0 {
+		data["deviceID"] = api.device.id
+	} else {
+		data["devicename"] = api.device.name
+		data["groupname"] = api.device.group
+	}
+	payload, err := json.Marshal(data)
+
 	if err != nil {
 		return err
 	}
@@ -193,6 +207,7 @@ func (api *CacophonyAPI) authenticate() error {
 	if err := d.Decode(&resp); err != nil {
 		return fmt.Errorf("decode: %v", err)
 	}
+	api.device.id = resp.ID
 	api.token = resp.Token
 	return nil
 }
@@ -252,7 +267,7 @@ func (api *CacophonyAPI) register() error {
 	if err := d.Decode(&respData); err != nil {
 		return fmt.Errorf("decode: %v", err)
 	}
-
+	api.device.id = respData.ID
 	api.device.password = password
 	api.token = respData.Token
 	api.justRegistered = true
@@ -308,6 +323,7 @@ func (api *CacophonyAPI) UploadThermalRaw(r io.Reader) error {
 type tokenResponse struct {
 	Messages []string
 	Token    string
+	ID       int
 }
 
 // message gets the first message of the supplised tokenResponse if present

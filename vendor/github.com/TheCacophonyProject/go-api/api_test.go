@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
@@ -78,11 +79,12 @@ func getTokenResponse() *tokenResponse {
 	return &tokenResponse{
 		Messages: []string{},
 		Token:    "tok-" + randString(20),
+		ID:       1,
 	}
 }
 
-func getJSONRequestMap(r *http.Request) map[string]string {
-	var requestJson = map[string]string{}
+func getJSONRequestMap(r *http.Request) map[string]interface{} {
+	var requestJson map[string]interface{}
 	decoder := json.NewDecoder(r.Body)
 	decoder.Decode(&requestJson)
 	return requestJson
@@ -115,7 +117,7 @@ func GetNewAuthenticateServer(t *testing.T) *httptest.Server {
 
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.NotEmpty(t, requestJson["password"])
-		assert.NotEmpty(t, requestJson["devicename"])
+		assert.True(t, (requestJson["groupname"] != "" && requestJson["devicename"] != "") || requestJson["deviceID"] != "")
 
 		w.WriteHeader(responseHeader)
 		w.Header().Set("Content-Type", "application/json")
@@ -220,7 +222,7 @@ func TestAPIReportEvent(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func getTempPasswordConfig(t *testing.T) (string, func(), *ConfigPassword, *ConfigPassword) {
+func getTempPasswordConfig(t *testing.T) (string, func(), *LockSafeConfig, *LockSafeConfig) {
 	tmpFile, err := ioutil.TempFile("", "test-password")
 	require.NoError(t, err, "Must be able to create test password file")
 	tmpFile.Close()
@@ -228,8 +230,8 @@ func getTempPasswordConfig(t *testing.T) (string, func(), *ConfigPassword, *Conf
 		_ = os.Remove(tmpFile.Name())
 	}
 
-	confPassword := NewConfigPassword(tmpFile.Name())
-	anotherConfPassword := NewConfigPassword(tmpFile.Name())
+	confPassword := NewLockSafeConfig(tmpFile.Name())
+	anotherConfPassword := NewLockSafeConfig(tmpFile.Name())
 
 	return tmpFile.Name(), cleanUpFunc, confPassword, anotherConfPassword
 }
@@ -239,7 +241,7 @@ func TestPasswordLock(t *testing.T) {
 	defer cleanUp()
 	tempPassword := randString(20)
 
-	err := confPassword.WritePassword(tempPassword)
+	err := confPassword.Write(1, tempPassword)
 	assert.Error(t, err)
 
 	locked, err := confPassword.GetExLock()
@@ -247,20 +249,20 @@ func TestPasswordLock(t *testing.T) {
 	require.True(t, locked, "File lock must succeed")
 	require.NoError(t, err, "must be able to get lock "+filename)
 
-	err = confPassword.WritePassword(tempPassword)
+	err = confPassword.Write(2, tempPassword)
 	require.NoError(t, err, "must be able to write to"+filename)
 
 	locked, err = anotherConfPassword.GetExLock()
 	assert.Error(t, err)
 	assert.False(t, locked)
 
-	err = anotherConfPassword.WritePassword(randString(20))
+	err = anotherConfPassword.Write(3, randString(20))
 	assert.Error(t, err)
 	confPassword.Unlock()
 
-	currentPassword, err := confPassword.ReadPassword()
+	conf, err := confPassword.Read()
 	assert.NoError(t, err)
-	assert.Equal(t, tempPassword, currentPassword)
+	assert.Equal(t, tempPassword, conf.Password)
 
 	tempPassword = randString(20)
 	locked, err = anotherConfPassword.GetExLock()
@@ -268,17 +270,18 @@ func TestPasswordLock(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, locked)
 
-	err = anotherConfPassword.WritePassword(tempPassword)
+	err = anotherConfPassword.Write(1, tempPassword)
 	assert.NoError(t, err)
 
-	currentPassword, err = anotherConfPassword.ReadPassword()
+	conf, err = anotherConfPassword.Read()
 	assert.NoError(t, err)
-	assert.Equal(t, tempPassword, currentPassword)
+	assert.Equal(t, tempPassword, conf.Password)
 
 	err = os.Remove(filename)
 }
 
-func createTestConfig(t *testing.T) (string, func()) {
+//createTestConfig creates device.yaml
+func createTestConfig(t *testing.T) string {
 	conf := &Config{
 		ServerURL:  apiURL,
 		Group:      defaultGroup,
@@ -287,16 +290,25 @@ func createTestConfig(t *testing.T) (string, func()) {
 	d, err := yaml.Marshal(conf)
 	require.NoError(t, err, "Must be able to make Config yaml")
 
-	tmpFile, err := ioutil.TempFile("", "test-config")
-	require.NoError(t, err, "Must be able to make test-config")
+	Fs = afero.NewMemMapFs()
+	afero.WriteFile(Fs, DeviceConfigPath, d, 0600)
 
-	_, err = tmpFile.Write(d)
-	require.NoError(t, err, "Must be able to write to "+tmpFile.Name())
+	return DeviceConfigPath
+}
 
-	cleanUpFunc := func() {
-		removeTestConfig(tmpFile.Name())
-	}
-	return tmpFile.Name(), cleanUpFunc
+// TestConfigFile test registered config is created with deviceid and password
+func TestConfigFile(t *testing.T) {
+	_ = createTestConfig(t)
+	_, err := NewAPI()
+	assert.NoError(t, err)
+	lockSafeConfig := NewLockSafeConfig(RegisteredConfigPath)
+	config, err := lockSafeConfig.Read()
+	require.NoError(t, err, "Must be able to read "+RegisteredConfigPath)
+	assert.NotEmpty(t, config.Password)
+
+	api, err := NewAPI()
+	assert.NoError(t, err)
+	assert.False(t, api.JustRegistered())
 }
 
 // runMultipleRegistrations registers supplied count APIs with configFile on multiple threads
@@ -306,7 +318,7 @@ func runMultipleRegistrations(configFile string, count int) (int, chan string) {
 
 	for i := 0; i < count; i++ {
 		go func() {
-			api, err := NewAPIFromConfig(configFile)
+			api, err := NewAPI()
 			if err != nil {
 				messages <- err.Error()
 			} else {
@@ -317,15 +329,8 @@ func runMultipleRegistrations(configFile string, count int) (int, chan string) {
 	return count, messages
 }
 
-func removeTestConfig(configFile string) {
-	_ = os.Remove(configFile)
-	_ = os.Remove(privConfigFilename(configFile))
-}
-
 func TestMultipleRegistrations(t *testing.T) {
-	configFile, cleanUp := createTestConfig(t)
-	defer cleanUp()
-
+	configFile := createTestConfig(t)
 	count, passwords := runMultipleRegistrations(configFile, 4)
 	password := <-passwords
 	for i := 1; i < count; i++ {
@@ -353,6 +358,7 @@ func getAPI(url, password string, register bool) *CacophonyAPI {
 		api.device.password = randString(20)
 		api.token = "tok-" + randString(20)
 		api.justRegistered = true
+		api.device.id = 1
 	}
 	return api
 }
