@@ -27,17 +27,25 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/TheCacophonyProject/audiobait/playlist"
 	"github.com/TheCacophonyProject/go-api"
+	"github.com/TheCacophonyProject/modemd/connrequester"
 )
 
-const scheduleFilename = "schedule.json"
-const libraryFilename = "audiofilelibrary.txt"
+const (
+	scheduleFilename  = "schedule.json"
+	libraryFilename   = "audiofilelibrary.txt"
+	connTimeout       = time.Minute * 2
+	connRetryInterval = time.Minute * 10
+	maxConnRetries    = 3
+)
 
 type Downloader struct {
 	api      *api.CacophonyAPI
 	audioDir string
+	cr       *connrequester.ConnectionRequester
 }
 
 func NewDownloader(audioPath string) (*Downloader, error) {
@@ -45,9 +53,20 @@ func NewDownloader(audioPath string) (*Downloader, error) {
 		return nil, err
 	}
 
-	api := tryToInitiateAPI()
+	d := &Downloader{
+		cr:       connrequester.NewConnectionRequester(),
+		audioDir: audioPath,
+	}
 
-	return &Downloader{api: api, audioDir: audioPath}, nil
+	log.Println("requesting internet connection")
+	d.cr.Start()
+	defer d.cr.Stop()
+	d.cr.WaitUntilUpLoop(connTimeout, connRetryInterval, -1)
+	log.Println("internet connection made")
+
+	d.api = tryToInitiateAPI()
+
+	return d, nil
 }
 
 func createAudioPath(audioPath string) error {
@@ -92,10 +111,15 @@ func (dl *Downloader) GetTodaysSchedule() playlist.Schedule {
 
 	if dl.api != nil {
 		log.Println("Downloading schedule from server")
-		if schedule, err := dl.downloadSchedule(); err == nil {
-			// success!
-			return schedule
+		dl.cr.Start()
+		defer dl.cr.Stop()
+		if err := dl.cr.WaitUntilUpLoop(connTimeout, connRetryInterval, maxConnRetries); err != nil {
+			log.Println(err)
 		} else {
+			if schedule, err := dl.downloadSchedule(); err == nil {
+				// success!
+				return schedule
+			}
 			log.Printf("Failed to download schedule schedule: %s", err)
 		}
 	}
@@ -110,12 +134,17 @@ func (dl *Downloader) GetTodaysSchedule() playlist.Schedule {
 	return schedule
 }
 
-// GetFilesFromSchedule will get all files from the IDs in the schedule and save to disk.
+// GetFilesForSchedule will get all files from the IDs in the schedule and save to disk.
 func (dl *Downloader) GetFilesForSchedule(schedule playlist.Schedule) (map[int]string, error) {
 	referencedFiles := schedule.GetReferencedSounds()
 
 	audioLibrary := OpenLibrary(filepath.Join(dl.audioDir, libraryFilename))
 
+	dl.cr.Start()
+	defer dl.cr.Stop()
+	if err := dl.cr.WaitUntilUpLoop(connTimeout, connRetryInterval, maxConnRetries); err != nil {
+		return nil, err
+	}
 	if dl.api != nil {
 		dl.downloadAllNewFiles(audioLibrary, referencedFiles)
 	}
