@@ -3,7 +3,7 @@ module github.com/TheCacophonyProject/audiobait
 go 1.12
 
 require (
-	github.com/TheCacophonyProject/go-api v0.0.0-20190626053918-f75d61018103
+	github.com/TheCacophonyProject/go-api v0.0.0-20190708023037-3bb10965c871
 	github.com/TheCacophonyProject/modemd v0.0.0-20190708011609-1940f5b6677b
 	github.com/TheCacophonyProject/window v0.0.0-20180531024057-3a2d74f7fcf5
 	github.com/alexflint/go-arg v1.0.0
