@@ -1,7 +1,0 @@
-[[constraint]]
-  name = "github.com/alexflint/go-arg"
-  version = "^1.0.0"
-
-[prune]
-  go-tests = true
-  unused-packages = true
