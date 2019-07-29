@@ -19,71 +19,45 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
-	"bufio"
-	"log"
-	"os"
 	"strings"
+	"io/ioutil"
+	"log"
 )
 
 type AudioFileLibrary struct {
-	filePath  string
-	FilesById map[string]string
+	soundsDirectory string
+	FilesById       map[string]string
 }
 
-func OpenLibrary(filePath string) *AudioFileLibrary {
-	return (&AudioFileLibrary{}).openLibrary(filePath)
+func OpenLibrary(soundsDirectory string) *AudioFileLibrary {
+	return (&AudioFileLibrary{}).openLibrary(soundsDirectory)
 }
 
-func (library *AudioFileLibrary) openLibrary(filePath string) *AudioFileLibrary {
-	library.filePath = filePath
+func (library *AudioFileLibrary) openLibrary(soundsDirectory string) *AudioFileLibrary {
+	library.soundsDirectory = soundsDirectory
 	library.FilesById = make(map[string]string)
 
-	// Open the file and scan it.
-	f, err := os.Open(filePath)
+	files, err := ioutil.ReadDir(soundsDirectory)
 	if err != nil {
-		log.Printf("Error loading audio library %s", err)
+		log.Println("Error reading audio directory", err)
 		return library
 	}
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		if len(line) > 0 && line[0] != '%' {
-			parts := strings.SplitN(line, ":", 2)
-
-			if len(parts) > 1 {
-				library.FilesById[parts[0]] = strings.Trim(parts[1], " ")
-			}
+	// Get IDs from the filename.
+	// TODO: Make this more robust.  Could be more than one hyphen in file name.  And names like schedule.json
+	for _, file := range files {
+		log.Println(file.Name())
+		parts := strings.Split(file.Name(), "-")
+		if len(parts) != 2 {
+			log.Println("Could not parse file with name", file.Name())
+			continue
 		}
-	}
-	if scanner.Err() != nil {
-		log.Printf("Error loading audio library %s", scanner.Err())
+		log.Println(parts)
+		fileID := strings.Split(parts[1], ".")[0]
+		log.Println(fileID)
+		library.FilesById[fileID] = file.Name()
 	}
 
 	return library
-}
-
-func (library *AudioFileLibrary) AddFile(fileId, filename string) error {
-	firstItem := len(library.FilesById) == 0
-
-	library.FilesById[fileId] = filename
-
-	f, err := os.OpenFile(library.filePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-	if err != nil {
-		return err
-	}
-
-	defer f.Close()
-
-	if firstItem {
-		_, _ = f.WriteString("\n#  This is a the list of all the audio files downloaded indexed by id of file")
-	}
-
-	text := "\n" + fileId + ": " + filename
-	_, err = f.WriteString(text)
-
-	return err
 }
 
 func (library *AudioFileLibrary) GetFileNameOnDisk(fileId string) (string, bool) {
