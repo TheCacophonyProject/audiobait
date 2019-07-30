@@ -19,9 +19,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
-	"strings"
+	"errors"
 	"io/ioutil"
 	"log"
+	"strings"
 )
 
 type AudioFileLibrary struct {
@@ -33,7 +34,34 @@ func OpenLibrary(soundsDirectory string) *AudioFileLibrary {
 	return (&AudioFileLibrary{}).openLibrary(soundsDirectory)
 }
 
+// Take a file name and extract an ID from it.
+// The file names are similar to "bellbird-6.mp3".  But they could be like "SI Kaka-SI Kaka-17.mp3"
+// Need to handle cases like "schedule.json" i.e. the file is not an audio file.
+func extractIDFromFileName(fileName string) (string, error) {
+
+	lastIndex := strings.LastIndex(fileName, "-")
+	if lastIndex == -1 || lastIndex+1 >= len(fileName) {
+		return "", errors.New("Skipping file with name " + fileName)
+	}
+
+	fileIDWithExtension := fileName[lastIndex+1:]
+	if len(fileIDWithExtension) == 0 {
+		return "", errors.New("Skipping file with name " + fileName)
+	}
+
+	parts := strings.Split(fileIDWithExtension, ".")
+	if len(parts) != 2 {
+		return "", errors.New("Skipping file with name " + fileName)
+	}
+
+	return parts[0], nil
+
+}
+
+// Read the audio directory.  Construct a map of file IDs to file names.
 func (library *AudioFileLibrary) openLibrary(soundsDirectory string) *AudioFileLibrary {
+
+	log.Println("Reading audio directory")
 	library.soundsDirectory = soundsDirectory
 	library.FilesById = make(map[string]string)
 
@@ -42,21 +70,20 @@ func (library *AudioFileLibrary) openLibrary(soundsDirectory string) *AudioFileL
 		log.Println("Error reading audio directory", err)
 		return library
 	}
+
 	// Get IDs from the filename.
-	// TODO: Make this more robust.  Could be more than one hyphen in file name.  And names like schedule.json
 	for _, file := range files {
-		log.Println(file.Name())
-		parts := strings.Split(file.Name(), "-")
-		if len(parts) != 2 {
-			log.Println("Could not parse file with name", file.Name())
+		fileID, err := extractIDFromFileName(file.Name())
+		if err != nil {
+			log.Println(err.Error())
 			continue
+		} else {
+			library.FilesById[fileID] = file.Name()
 		}
-		log.Println(parts)
-		fileID := strings.Split(parts[1], ".")[0]
-		log.Println(fileID)
-		library.FilesById[fileID] = file.Name()
+
 	}
 
+	log.Println("Audio directory read successfully")
 	return library
 }
 
