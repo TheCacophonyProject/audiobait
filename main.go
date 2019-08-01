@@ -28,8 +28,8 @@ import (
 	"github.com/TheCacophonyProject/audiobait/playlist"
 )
 
-const numTimesToTryAndDownloadSounds = 4
-const numSecsToWaitBeforeTryingAgain = 3
+const maxRetries = 4
+const retryInterval = 3 * time.Second
 
 // version is populated at link time via goreleaser
 var version = "No version provided"
@@ -75,12 +75,12 @@ func runMain() error {
 	for {
 
 		soundsDownloaded := false
-		for i := 0; i < numTimesToTryAndDownloadSounds; i++ {
+		for i := 0; i < maxRetries; i++ {
 			err = DownloadAndPlaySounds(conf.AudioDir, soundCard)
 			if err != nil {
-				log.Printf("Error dowloading sounds and schedule: %v", err)
-				log.Printf("Trying again in %d seconds", numSecsToWaitBeforeTryingAgain)
-				time.Sleep(numSecsToWaitBeforeTryingAgain * time.Second)
+				log.Println("Error dowloading sounds and schedule:", err)
+				log.Println("Trying again in", int64(retryInterval/time.Second), "seconds.")
+				time.Sleep(retryInterval)
 			} else {
 				soundsDownloaded = true
 				log.Println("Successfully downloaded sounds and schedule.")

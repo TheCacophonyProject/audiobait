@@ -25,8 +25,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/TheCacophonyProject/audiobait/playlist"
@@ -155,10 +153,9 @@ func (dl *Downloader) GetFilesForSchedule(schedule playlist.Schedule) (map[int]s
 
 func (dl *Downloader) listAvailableFiles(audioLibrary *AudioFileLibrary, referencedFiles []int) map[int]string {
 	availableFiles := make(map[int]string)
-	for _, fileId := range referencedFiles {
-		strFileId := strconv.Itoa(fileId)
-		if filename, exists := audioLibrary.GetFileNameOnDisk(strFileId); exists {
-			availableFiles[fileId] = filename
+	for _, fileID := range referencedFiles {
+		if filename, exists := audioLibrary.GetFileNameOnDisk(fileID); exists {
+			availableFiles[fileID] = filename
 		}
 	}
 	return availableFiles
@@ -173,34 +170,28 @@ func (dl *Downloader) validateSoundFile(audioLibrary *AudioFileLibrary, fileID i
 
 func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, referencedFiles []int) {
 	log.Println("Starting downloading audio files.")
-	for _, fileId := range referencedFiles {
-		strFileId := strconv.Itoa(fileId)
-		if _, exists := audioLibrary.GetFileNameOnDisk(strFileId); exists {
-			valid := dl.validateSoundFile(audioLibrary, fileId)
+	for _, fileID := range referencedFiles {
+		if _, exists := audioLibrary.GetFileNameOnDisk(fileID); exists {
+			valid := dl.validateSoundFile(audioLibrary, fileID)
 			if exists && valid {
 				continue
 			}
 		} else {
-			log.Printf("Attempting to download file with id %s", strFileId)
+			log.Printf("Attempting to download file with id %d", fileID)
 
-			fileInfo, err := dl.api.GetFileDetails(fileId)
+			fileInfo, err := dl.api.GetFileDetails(fileID)
 			if err != nil {
-				log.Printf("Could not download file with id %s.   Downloading next file" + strFileId)
+				log.Printf("Could not download file with id %d. Downloading next file", fileID)
 				continue
 			}
 
-			fileNameParts := strings.Split(fileInfo.File.Details.OriginalName, ".")
-			fileExt := ""
-			if len(fileNameParts) > 1 {
-				fileExt = "." + fileNameParts[len(fileNameParts)-1]
-			}
-			fileNameOnDisk := fileInfo.File.Details.Name + "-" + strFileId + fileExt
+			fileNameOnDisk := MakeFileName(fileInfo.File.Details.OriginalName, fileInfo.File.Details.Name, fileID)
 
 			if err = dl.api.DownloadFile(fileInfo, filepath.Join(dl.audioDir, fileNameOnDisk)); err != nil {
-				log.Printf("Could not download file with id %s.  Error is %s. Downloading next file", strFileId, err)
+				log.Printf("Could not download file with id %s.  Error is %s. Downloading next file", fileID, err)
 			} else {
 				// Add this file to our audio library.
-				audioLibrary.FilesById[strFileId] = fileNameOnDisk
+				audioLibrary.FilesByID[fileID] = fileNameOnDisk
 			}
 
 		}

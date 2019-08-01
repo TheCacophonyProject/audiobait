@@ -22,48 +22,50 @@ import (
 	"errors"
 	"io/ioutil"
 	"log"
+	"path/filepath"
+	"strconv"
 	"strings"
 )
 
+// AudioFileLibrary is a structure to hold info on the files in the audio directory.
 type AudioFileLibrary struct {
 	soundsDirectory string
-	FilesById       map[string]string
-}
-
-func OpenLibrary(soundsDirectory string) *AudioFileLibrary {
-	return (&AudioFileLibrary{}).openLibrary(soundsDirectory)
+	FilesByID       map[int]string
 }
 
 // Take a file name and extract an ID from it.
 // The file names are similar to "bellbird-6.mp3".  But they could be like "SI Kaka-SI Kaka-17.mp3"
 // Need to handle cases like "schedule.json" i.e. the file is not an audio file.
-func extractIDFromFileName(fileName string) (string, error) {
+func extractIDFromFileName(fileName string) (int, error) {
 
 	lastIndex := strings.LastIndex(fileName, "-")
-	if lastIndex == -1 || lastIndex+1 >= len(fileName) {
-		return "", errors.New("Skipping file with name " + fileName)
+	if lastIndex == -1 || lastIndex+1 >= len(fileName) { // No "-" found or it's at the very end of the file name.
+		return -1, errors.New("Skipping file with name " + fileName)
 	}
 
 	fileIDWithExtension := fileName[lastIndex+1:]
 	if len(fileIDWithExtension) == 0 {
-		return "", errors.New("Skipping file with name " + fileName)
+		return -1, errors.New("Skipping file with name " + fileName)
 	}
 
-	parts := strings.Split(fileIDWithExtension, ".")
-	if len(parts) != 2 {
-		return "", errors.New("Skipping file with name " + fileName)
+	fileIDStr := strings.TrimSuffix(fileIDWithExtension, filepath.Ext(fileIDWithExtension))
+	fileID, err := strconv.Atoi(fileIDStr)
+	if err != nil {
+		return -1, err
 	}
 
-	return parts[0], nil
+	return fileID, nil
 
 }
 
-// Read the audio directory.  Construct a map of file IDs to file names.
-func (library *AudioFileLibrary) openLibrary(soundsDirectory string) *AudioFileLibrary {
+// OpenLibrary reads the audio directory.  And constructs a map of file IDs to file names.
+func OpenLibrary(soundsDirectory string) *AudioFileLibrary {
 
 	log.Println("Reading audio directory")
-	library.soundsDirectory = soundsDirectory
-	library.FilesById = make(map[string]string)
+	library := &AudioFileLibrary{
+		soundsDirectory : soundsDirectory,
+		FilesByID : make(map[int]string),
+	}
 
 	files, err := ioutil.ReadDir(soundsDirectory)
 	if err != nil {
@@ -71,14 +73,14 @@ func (library *AudioFileLibrary) openLibrary(soundsDirectory string) *AudioFileL
 		return library
 	}
 
-	// Get IDs from the filename.
+	// Get IDs from the filenames.
 	for _, file := range files {
 		fileID, err := extractIDFromFileName(file.Name())
 		if err != nil {
 			log.Println(err.Error())
 			continue
 		} else {
-			library.FilesById[fileID] = file.Name()
+			library.FilesByID[fileID] = file.Name()
 		}
 
 	}
@@ -87,7 +89,22 @@ func (library *AudioFileLibrary) openLibrary(soundsDirectory string) *AudioFileL
 	return library
 }
 
-func (library *AudioFileLibrary) GetFileNameOnDisk(fileId string) (string, bool) {
-	filename, exists := library.FilesById[fileId]
+// GetFileNameOnDisk takes a fileID and returns it's name, which was previously read from disk.
+func (library *AudioFileLibrary) GetFileNameOnDisk(fileID int) (string, bool) {
+	filename, exists := library.FilesByID[fileID]
 	return filename, exists
+}
+
+// MakeFileName takes some file details retrieved from the API server and constructs
+// the name we want the file to have when written to disk.
+func MakeFileName(APIOriginalFileName string, APIFileName string, fileID int) string {
+
+	// fileNameParts := strings.Split(apiOriginalFileName, ".")
+	// fileExt := ""
+	// if len(fileNameParts) > 1 {
+	// 	fileExt = "." + fileNameParts[len(fileNameParts)-1]
+	// }
+	fileExt := filepath.Ext(APIOriginalFileName)
+	return APIFileName + "-" + strconv.Itoa(fileID) + fileExt
+
 }
