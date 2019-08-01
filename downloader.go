@@ -117,11 +117,11 @@ func (dl *Downloader) GetTodaysSchedule() playlist.Schedule {
 				// success!
 				return schedule
 			}
-			log.Printf("Failed to download schedule schedule: %s", err)
+			log.Printf("Failed to download schedule: %s", err)
 		}
 	}
 
-	// otherwise try loading from disk
+	// Otherwise try loading from disk
 	log.Println("Loading schedule from disk")
 	schedule, err := dl.loadScheduleFromDisk()
 	if err != nil {
@@ -188,7 +188,7 @@ func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, refere
 			fileNameOnDisk := MakeFileName(fileInfo.File.Details.OriginalName, fileInfo.File.Details.Name, fileID)
 
 			if err = dl.api.DownloadFile(fileInfo, filepath.Join(dl.audioDir, fileNameOnDisk)); err != nil {
-				log.Printf("Could not download file with id %s.  Error is %s. Downloading next file", fileID, err)
+				log.Printf("Could not download file with id %d.  Error is %s. Downloading next file", fileID, err)
 			} else {
 				// Add this file to our audio library.
 				audioLibrary.FilesByID[fileID] = fileNameOnDisk
