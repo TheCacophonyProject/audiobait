@@ -29,7 +29,7 @@ import (
 )
 
 const maxRetries = 4
-const retryInterval = 3 * time.Second
+const retryInterval = 30 * time.Second
 
 // version is populated at link time via goreleaser
 var version = "No version provided"

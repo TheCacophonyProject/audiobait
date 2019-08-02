@@ -39,15 +39,11 @@ type AudioFileLibrary struct {
 func extractIDFromFileName(fileName string) (int, error) {
 
 	lastIndex := strings.LastIndex(fileName, "-")
-	if lastIndex == -1 || lastIndex+1 >= len(fileName) { // No "-" found or it's at the very end of the file name.
+	if lastIndex < 0 {
 		return -1, errors.New("Skipping file with name " + fileName)
 	}
 
 	fileIDWithExtension := fileName[lastIndex+1:]
-	if len(fileIDWithExtension) == 0 {
-		return -1, errors.New("Skipping file with name " + fileName)
-	}
-
 	fileIDStr := strings.TrimSuffix(fileIDWithExtension, filepath.Ext(fileIDWithExtension))
 	fileID, err := strconv.Atoi(fileIDStr)
 	if err != nil {
@@ -55,7 +51,6 @@ func extractIDFromFileName(fileName string) (int, error) {
 	}
 
 	return fileID, nil
-
 }
 
 // OpenLibrary reads the audio directory.  And constructs a map of file IDs to file names.
@@ -76,13 +71,9 @@ func OpenLibrary(soundsDirectory string) *AudioFileLibrary {
 	// Get IDs from the filenames.
 	for _, file := range files {
 		fileID, err := extractIDFromFileName(file.Name())
-		if err != nil {
-			log.Println(err.Error())
-			continue
-		} else {
+		if err == nil {
 			library.FilesByID[fileID] = file.Name()
 		}
-
 	}
 
 	log.Println("Audio directory read successfully")
