@@ -87,7 +87,8 @@ func tryToInitiateAPI() (*api.CacophonyAPI, error) {
 	if api.IsNotRegisteredError(err) {
 		log.Println("device not registered. Exiting and waiting to be restarted")
 		os.Exit(0)
-	} else if err != nil {
+	}
+	if err != nil {
 		return nil, err
 	}
 	return cacAPI, nil
