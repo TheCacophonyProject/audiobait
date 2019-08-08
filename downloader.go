@@ -64,7 +64,11 @@ func NewDownloader(audioPath string) (*Downloader, error) {
 	d.cr.WaitUntilUpLoop(connTimeout, connRetryInterval, -1)
 	log.Println("internet connection made")
 
-	d.api = tryToInitiateAPI()
+	cacAPI, err := tryToInitiateAPI()
+	if err != nil {
+		return nil, err
+	}
+	d.api = cacAPI
 
 	return d, nil
 }
@@ -77,13 +81,17 @@ func createAudioPath(audioPath string) error {
 	return nil
 }
 
-func tryToInitiateAPI() *api.CacophonyAPI {
+func tryToInitiateAPI() (*api.CacophonyAPI, error) {
 	log.Println("Connecting with API")
-	api, err := api.NewAPI()
-	if err != nil {
-		log.Printf("Failed to connect with API %s", err.Error())
+	cacAPI, err := api.New()
+	if api.IsNotRegisteredError(err) {
+		log.Println("device not registered. Exiting and waiting to be restarted")
+		os.Exit(0)
 	}
-	return api
+	if err != nil {
+		return nil, err
+	}
+	return cacAPI, nil
 }
 
 func (dl *Downloader) saveScheduleToDisk(jsonData []byte) error {
