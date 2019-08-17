@@ -19,74 +19,77 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
-	"bufio"
+	"errors"
+	"io/ioutil"
 	"log"
-	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 )
 
+// AudioFileLibrary is a structure to hold info on the files in the audio directory.
 type AudioFileLibrary struct {
-	filePath  string
-	FilesById map[string]string
+	soundsDirectory string
+	FilesByID       map[int]string
 }
 
-func OpenLibrary(filePath string) *AudioFileLibrary {
-	return (&AudioFileLibrary{}).openLibrary(filePath)
-}
+// Take a file name and extract an ID from it.
+// The file names are similar to "bellbird-6.mp3".  But they could be like "SI Kaka-SI Kaka-17.mp3"
+// Need to handle cases like "schedule.json" i.e. the file is not an audio file.
+func extractIDFromFileName(fileName string) (int, error) {
 
-func (library *AudioFileLibrary) openLibrary(filePath string) *AudioFileLibrary {
-	library.filePath = filePath
-	library.FilesById = make(map[string]string)
-
-	// Open the file and scan it.
-	f, err := os.Open(filePath)
-	if err != nil {
-		log.Printf("Error loading audio library %s", err)
-		return library
+	lastIndex := strings.LastIndex(fileName, "-")
+	if lastIndex < 0 {
+		return -1, errors.New("Skipping file with name " + fileName)
 	}
 
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
+	fileIDWithExtension := fileName[lastIndex+1:]
+	fileIDStr := strings.TrimSuffix(fileIDWithExtension, filepath.Ext(fileIDWithExtension))
+	fileID, err := strconv.Atoi(fileIDStr)
+	if err != nil {
+		return -1, err
+	}
 
-		if len(line) > 0 && line[0] != '%' {
-			parts := strings.SplitN(line, ":", 2)
+	return fileID, nil
+}
 
-			if len(parts) > 1 {
-				library.FilesById[parts[0]] = strings.Trim(parts[1], " ")
-			}
+// OpenLibrary reads the audio directory.  And constructs a map of file IDs to file names.
+func OpenLibrary(soundsDirectory string) (*AudioFileLibrary, error) {
+
+	library := &AudioFileLibrary{
+		soundsDirectory: soundsDirectory,
+		FilesByID:       make(map[int]string),
+	}
+
+	files, err := ioutil.ReadDir(soundsDirectory)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get IDs from the filenames.
+	for _, file := range files {
+		fileID, err := extractIDFromFileName(file.Name())
+		if err == nil {
+			library.FilesByID[fileID] = file.Name()
+		} else {
+			log.Println(err)
 		}
 	}
-	if scanner.Err() != nil {
-		log.Printf("Error loading audio library %s", scanner.Err())
-	}
 
-	return library
+	return library, nil
 }
 
-func (library *AudioFileLibrary) AddFile(fileId, filename string) error {
-	firstItem := len(library.FilesById) == 0
-
-	library.FilesById[fileId] = filename
-
-	f, err := os.OpenFile(library.filePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-	if err != nil {
-		return err
-	}
-
-	defer f.Close()
-
-	if firstItem {
-		_, _ = f.WriteString("\n#  This is a the list of all the audio files downloaded indexed by id of file")
-	}
-
-	text := "\n" + fileId + ": " + filename
-	_, err = f.WriteString(text)
-
-	return err
-}
-
-func (library *AudioFileLibrary) GetFileNameOnDisk(fileId string) (string, bool) {
-	filename, exists := library.FilesById[fileId]
+// GetFileNameOnDisk takes a fileID and returns it's name, which was previously read from disk.
+func (library *AudioFileLibrary) GetFileNameOnDisk(fileID int) (string, bool) {
+	filename, exists := library.FilesByID[fileID]
 	return filename, exists
+}
+
+// MakeFileName takes some file details retrieved from the API server and constructs
+// the name we want the file to have when written to disk.
+func MakeFileName(APIOriginalFileName string, APIFileName string, fileID int) string {
+
+	fileExt := filepath.Ext(APIOriginalFileName)
+	return APIFileName + "-" + strconv.Itoa(fileID) + fileExt
+
 }

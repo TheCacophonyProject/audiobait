@@ -21,11 +21,15 @@ package main
 import (
 	"errors"
 	"log"
+	"time"
 
 	arg "github.com/alexflint/go-arg"
 
 	"github.com/TheCacophonyProject/audiobait/playlist"
 )
+
+const maxRetries = 4
+const retryInterval = 30 * time.Second
 
 // version is populated at link time via goreleaser
 var version = "No version provided"
@@ -69,13 +73,32 @@ func runMain() error {
 	log.Printf("Audio files directory is %s", conf.AudioDir)
 
 	for {
-		err = DownloadAndPlaySounds(conf.AudioDir, soundCard)
-		if err != nil {
-			// Wait until tomorrow.
-			log.Printf("Error playing sounds: %v", err)
-			playlist.WaitUntilNextDay()
+
+		soundsDownloaded := false
+		for i := 1; i <= maxRetries; i++ {
+			err = DownloadAndPlaySounds(conf.AudioDir, soundCard)
+			if err != nil {
+				log.Println("Error dowloading sounds and schedule:", err)
+				if i < maxRetries {
+					log.Println("Trying again in", retryInterval)
+					time.Sleep(retryInterval)
+				}
+			} else {
+				soundsDownloaded = true
+				log.Println("Successfully downloaded sounds and schedule.")
+				break
+			}
 		}
+
+		if !soundsDownloaded {
+			log.Println("Could not download sounds and schedule.")
+		}
+
+		// Wait until tomorrow.
+		playlist.WaitUntilNextDay()
+
 	}
+
 }
 
 func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) error {
