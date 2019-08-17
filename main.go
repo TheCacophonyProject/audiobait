@@ -79,8 +79,10 @@ func runMain() error {
 			err = DownloadAndPlaySounds(conf.AudioDir, soundCard)
 			if err != nil {
 				log.Println("Error dowloading sounds and schedule:", err)
-				log.Println("Trying again in", int64(retryInterval/time.Second), "seconds.")
-				time.Sleep(retryInterval)
+				if i < maxRetries-1 {
+					log.Println("Trying again in", retryInterval)
+					time.Sleep(retryInterval)
+				}
 			} else {
 				soundsDownloaded = true
 				log.Println("Successfully downloaded sounds and schedule.")

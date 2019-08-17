@@ -133,9 +133,14 @@ func (dl *Downloader) GetTodaysSchedule() playlist.Schedule {
 
 // GetFilesForSchedule will get all files from the IDs in the schedule and save to disk.
 func (dl *Downloader) GetFilesForSchedule(schedule playlist.Schedule) (map[int]string, error) {
+	
 	referencedFiles := schedule.GetReferencedSounds()
 
-	audioLibrary := OpenLibrary(dl.audioDir)
+	audioLibrary, err := OpenLibrary(dl.audioDir)
+	if err != nil {
+		log.Println("Error creating audio library.", err)
+		return nil, nil
+	}
 
 	dl.cr.Start()
 	defer dl.cr.Stop()

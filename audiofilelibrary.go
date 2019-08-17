@@ -54,18 +54,16 @@ func extractIDFromFileName(fileName string) (int, error) {
 }
 
 // OpenLibrary reads the audio directory.  And constructs a map of file IDs to file names.
-func OpenLibrary(soundsDirectory string) *AudioFileLibrary {
+func OpenLibrary(soundsDirectory string) (*AudioFileLibrary, error) {
 
-	log.Println("Reading audio directory")
 	library := &AudioFileLibrary{
-		soundsDirectory : soundsDirectory,
-		FilesByID : make(map[int]string),
+		soundsDirectory: soundsDirectory,
+		FilesByID:       make(map[int]string),
 	}
 
 	files, err := ioutil.ReadDir(soundsDirectory)
 	if err != nil {
-		log.Println("Error reading audio directory", err)
-		return library
+		return nil, err
 	}
 
 	// Get IDs from the filenames.
@@ -73,11 +71,12 @@ func OpenLibrary(soundsDirectory string) *AudioFileLibrary {
 		fileID, err := extractIDFromFileName(file.Name())
 		if err == nil {
 			library.FilesByID[fileID] = file.Name()
+		} else {
+			log.Println(err)
 		}
 	}
 
-	log.Println("Audio directory read successfully")
-	return library
+	return library, nil
 }
 
 // GetFileNameOnDisk takes a fileID and returns it's name, which was previously read from disk.
@@ -90,11 +89,6 @@ func (library *AudioFileLibrary) GetFileNameOnDisk(fileID int) (string, bool) {
 // the name we want the file to have when written to disk.
 func MakeFileName(APIOriginalFileName string, APIFileName string, fileID int) string {
 
-	// fileNameParts := strings.Split(apiOriginalFileName, ".")
-	// fileExt := ""
-	// if len(fileNameParts) > 1 {
-	// 	fileExt = "." + fileNameParts[len(fileNameParts)-1]
-	// }
 	fileExt := filepath.Ext(APIOriginalFileName)
 	return APIFileName + "-" + strconv.Itoa(fileID) + fileExt
 
