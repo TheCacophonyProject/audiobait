@@ -21,10 +21,10 @@ builds:
 checksum:
   name_template: '{{ .ProjectName }}_{{ .Version }}_checksums.txt'
 
-nfpm:
-  vendor: The Cacophony Project
+nfpms:
+- vendor: The Cacophony Project
   homepage: http://cacophony.org.nz/
-  maintainer: Menno Finlay-Smits <menno@cacophony.org.nz>
+  maintainer: Cacophony Developers <coredev@cacophony.org.nz>
   description: Play audio lures on a schedule
   license: GPL v3.0
   name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Arch }}"
