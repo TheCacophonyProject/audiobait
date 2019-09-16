@@ -220,10 +220,6 @@ func (dl *Downloader) downloadAudioFile(audioLibrary *AudioFileLibrary, fileID i
 	for i := 1; i <= maxDownloadRetries; i++ {
 		if err := dl.api.DownloadFile(fileResp, filepath.Join(dl.audioDir, fileNameOnDisk)); err != nil {
 			log.Printf("Error dowloading sound file id %d and name %s.  Error is %s.", fileID, fileNameOnDisk, err)
-			if i < maxRetries {
-				log.Println("Trying again in", retryDownloadInterval)
-				time.Sleep(retryDownloadInterval)
-			}
 		} else {
 			if dl.validateSoundFile(filepath.Join(dl.audioDir, fileNameOnDisk), fileResp.FileSize) {
 				// File is valid, add it to our audio library.
@@ -232,10 +228,10 @@ func (dl *Downloader) downloadAudioFile(audioLibrary *AudioFileLibrary, fileID i
 			}
 			log.Printf("File with ID %d and name %s is not valid. Removing from disk.", fileID, fileNameOnDisk)
 			dl.removeAudioFile(audioLibrary, fileID, filepath.Join(dl.audioDir, fileNameOnDisk))
-			if i < maxRetries {
-				log.Println("Trying again in", retryDownloadInterval)
-				time.Sleep(retryDownloadInterval)
-			}
+		}
+		if i < maxRetries {
+			log.Println("Trying again in", retryDownloadInterval)
+			time.Sleep(retryDownloadInterval)
 		}
 	}
 
@@ -244,7 +240,9 @@ func (dl *Downloader) downloadAudioFile(audioLibrary *AudioFileLibrary, fileID i
 }
 
 func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, referencedFiles []int) {
+
 	log.Println("Starting downloading audio files.")
+
 	for _, fileID := range referencedFiles {
 
 		fileResp, err := dl.api.GetFileDetails(fileID)
@@ -264,7 +262,9 @@ func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, refere
 			}
 		}
 	}
+
 	log.Println("Downloading audio files complete.")
+
 }
 
 // GetSchedule will get the audio schedule
