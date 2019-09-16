@@ -33,10 +33,12 @@ import (
 )
 
 const (
-	scheduleFilename  = "schedule.json"
-	connTimeout       = time.Minute * 2
-	connRetryInterval = time.Minute * 10
-	maxConnRetries    = 3
+	scheduleFilename      = "schedule.json"
+	connTimeout           = time.Minute * 2
+	connRetryInterval     = time.Minute * 10
+	maxConnRetries        = 3
+	maxDownloadRetries    = 4
+	retryDownloadInterval = 30 * time.Second
 )
 
 type Downloader struct {
@@ -141,7 +143,7 @@ func (dl *Downloader) GetTodaysSchedule() playlist.Schedule {
 
 // GetFilesForSchedule will get all files from the IDs in the schedule and save to disk.
 func (dl *Downloader) GetFilesForSchedule(schedule playlist.Schedule) (map[int]string, error) {
-	
+
 	referencedFiles := schedule.GetReferencedSounds()
 
 	audioLibrary, err := OpenLibrary(dl.audioDir)
@@ -174,39 +176,92 @@ func (dl *Downloader) listAvailableFiles(audioLibrary *AudioFileLibrary, referen
 	return availableFiles
 }
 
-// Check that the sound file is valid.  This may mean checking it's size on disk compared
-// to the info the API server sends us, or even it's file hash.
-func (dl *Downloader) validateSoundFile(audioLibrary *AudioFileLibrary, fileID int) bool {
-	// Just return true for now.
+// Check that the sound file is valid.
+func (dl *Downloader) validateSoundFile(fileNameOnDisk string, fileSize int) bool {
+
+	// Check size on disk is the same as the size the api-server tells us this file should be.
+	file, err := os.Open(fileNameOnDisk)
+	if err != nil {
+		return false
+	}
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return false
+	}
+
+	if fileInfo.Size() != int64(fileSize) {
+		return false
+	}
+
 	return true
+
+}
+
+// Removes a file from the disk of the device.  Also takes it out of the audioLibrary so it won't be accessed later.
+func (dl *Downloader) removeAudioFile(audioLibrary *AudioFileLibrary, fileID int, fileNameOnDisk string) {
+
+	delete(audioLibrary.FilesByID, fileID)
+
+	err := os.Remove(fileNameOnDisk)
+	if err != nil {
+		log.Printf("Could not remove file with ID %d and name %s from disk. Error is: %s", fileID, fileNameOnDisk, err)
+	}
+
+}
+
+// Try and download a single audio file from the API server.
+func (dl *Downloader) downloadAudioFile(audioLibrary *AudioFileLibrary, fileID int, fileResp *api.FileResponse) {
+
+	fileNameOnDisk := MakeFileName(fileResp.File.Details.OriginalName, fileResp.File.Details.Name, fileID)
+
+	log.Printf("Attempting to download file with id %d and name %s", fileID, fileNameOnDisk)
+
+	for i := 1; i <= maxDownloadRetries; i++ {
+		if err := dl.api.DownloadFile(fileResp, filepath.Join(dl.audioDir, fileNameOnDisk)); err != nil {
+			log.Printf("Error dowloading sound file id %d and name %s.  Error is %s.", fileID, fileNameOnDisk, err)
+			if i < maxRetries {
+				log.Println("Trying again in", retryDownloadInterval)
+				time.Sleep(retryDownloadInterval)
+			}
+		} else {
+			if dl.validateSoundFile(filepath.Join(dl.audioDir, fileNameOnDisk), fileResp.FileSize) {
+				// File is valid, add it to our audio library.
+				audioLibrary.FilesByID[fileID] = fileNameOnDisk
+				return
+			}
+			log.Printf("File with ID %d and name %s is not valid. Removing from disk.", fileID, fileNameOnDisk)
+			dl.removeAudioFile(audioLibrary, fileID, filepath.Join(dl.audioDir, fileNameOnDisk))
+			if i < maxRetries {
+				log.Println("Trying again in", retryDownloadInterval)
+				time.Sleep(retryDownloadInterval)
+			}
+		}
+	}
+
+	log.Printf("Could not download and validate file with ID %d and name %s.", fileID, fileNameOnDisk)
+
 }
 
 func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, referencedFiles []int) {
 	log.Println("Starting downloading audio files.")
 	for _, fileID := range referencedFiles {
-		if _, exists := audioLibrary.GetFileNameOnDisk(fileID); exists {
-			valid := dl.validateSoundFile(audioLibrary, fileID)
-			if exists && valid {
-				continue
-			}
+
+		fileResp, err := dl.api.GetFileDetails(fileID)
+		if err != nil {
+			log.Printf("Could not download file with id %d. Error is %s", fileID, err)
+			continue
+		}
+
+		fileNameOnDisk, exists := audioLibrary.GetFileNameOnDisk(fileID)
+		if !exists {
+			dl.downloadAudioFile(audioLibrary, fileID, fileResp)
 		} else {
-			log.Printf("Attempting to download file with id %d", fileID)
-
-			fileInfo, err := dl.api.GetFileDetails(fileID)
-			if err != nil {
-				log.Printf("Could not download file with id %d. Downloading next file", fileID)
-				continue
+			if !dl.validateSoundFile(filepath.Join(dl.audioDir, fileNameOnDisk), fileResp.FileSize) {
+				log.Printf("File with ID %d and name %s is not valid. Removing from disk.", fileID, fileNameOnDisk)
+				dl.removeAudioFile(audioLibrary, fileID, filepath.Join(dl.audioDir, fileNameOnDisk))
+				dl.downloadAudioFile(audioLibrary, fileID, fileResp)
 			}
-
-			fileNameOnDisk := MakeFileName(fileInfo.File.Details.OriginalName, fileInfo.File.Details.Name, fileID)
-
-			if err = dl.api.DownloadFile(fileInfo, filepath.Join(dl.audioDir, fileNameOnDisk)); err != nil {
-				log.Printf("Could not download file with id %d.  Error is %s. Downloading next file", fileID, err)
-			} else {
-				// Add this file to our audio library.
-				audioLibrary.FilesByID[fileID] = fileNameOnDisk
-			}
-
 		}
 	}
 	log.Println("Downloading audio files complete.")
