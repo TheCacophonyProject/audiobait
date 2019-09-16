@@ -215,7 +215,7 @@ func (dl *Downloader) downloadAudioFile(audioLibrary *AudioFileLibrary, fileID i
 
 	fileNameOnDisk := MakeFileName(fileResp.File.Details.OriginalName, fileResp.File.Details.Name, fileID)
 
-	log.Printf("Attempting to download file with id %d and name %s", fileID, fileNameOnDisk)
+	log.Printf("Processing file with id %d and name %s", fileID, fileNameOnDisk)
 
 	for i := 1; i <= maxDownloadRetries; i++ {
 		if err := dl.api.DownloadFile(fileResp, filepath.Join(dl.audioDir, fileNameOnDisk)); err != nil {
@@ -251,16 +251,8 @@ func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, refere
 			continue
 		}
 
-		fileNameOnDisk, exists := audioLibrary.GetFileNameOnDisk(fileID)
-		if !exists {
-			dl.downloadAudioFile(audioLibrary, fileID, fileResp)
-		} else {
-			if !dl.validateSoundFile(filepath.Join(dl.audioDir, fileNameOnDisk), fileResp.FileSize) {
-				log.Printf("File with ID %d and name %s is not valid. Removing from disk.", fileID, fileNameOnDisk)
-				dl.removeAudioFile(audioLibrary, fileID, filepath.Join(dl.audioDir, fileNameOnDisk))
-				dl.downloadAudioFile(audioLibrary, fileID, fileResp)
-			}
-		}
+		dl.downloadAudioFile(audioLibrary, fileID, fileResp)
+
 	}
 
 	log.Println("Downloading audio files complete.")
