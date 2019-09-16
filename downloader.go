@@ -180,16 +180,10 @@ func (dl *Downloader) listAvailableFiles(audioLibrary *AudioFileLibrary, referen
 func (dl *Downloader) validateSoundFile(fileNameOnDisk string, fileSize int) bool {
 
 	// Check size on disk is the same as the size the api-server tells us this file should be.
-	file, err := os.Open(fileNameOnDisk)
+	fileInfo, err := os.Stat(fileNameOnDisk)
 	if err != nil {
 		return false
 	}
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return false
-	}
-
 	if fileInfo.Size() != int64(fileSize) {
 		return false
 	}
@@ -214,10 +208,10 @@ func (dl *Downloader) removeAudioFile(audioLibrary *AudioFileLibrary, fileID int
 func (dl *Downloader) downloadAudioFile(audioLibrary *AudioFileLibrary, fileID int, fileResp *api.FileResponse) {
 
 	fileNameOnDisk := MakeFileName(fileResp.File.Details.OriginalName, fileResp.File.Details.Name, fileID)
+	log.Printf("Processing file with id %d and name %s.", fileID, fileNameOnDisk)
 
-	log.Printf("Processing file with id %d and name %s", fileID, fileNameOnDisk)
-
-	for i := 1; i <= maxDownloadRetries; i++ {
+	var i int
+	for {
 		if err := dl.api.DownloadFile(fileResp, filepath.Join(dl.audioDir, fileNameOnDisk)); err != nil {
 			log.Printf("Error dowloading sound file id %d and name %s.  Error is %s.", fileID, fileNameOnDisk, err)
 		} else {
@@ -229,9 +223,12 @@ func (dl *Downloader) downloadAudioFile(audioLibrary *AudioFileLibrary, fileID i
 			log.Printf("File with ID %d and name %s is not valid. Removing from disk.", fileID, fileNameOnDisk)
 			dl.removeAudioFile(audioLibrary, fileID, filepath.Join(dl.audioDir, fileNameOnDisk))
 		}
-		if i < maxRetries {
+		if i < maxDownloadRetries {
 			log.Println("Trying again in", retryDownloadInterval)
 			time.Sleep(retryDownloadInterval)
+			i++
+		} else {
+			break
 		}
 	}
 
@@ -245,13 +242,22 @@ func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, refere
 
 	for _, fileID := range referencedFiles {
 
-		fileResp, err := dl.api.GetFileDetails(fileID)
-		if err != nil {
-			log.Printf("Could not download file with id %d. Error is %s", fileID, err)
-			continue
+		var i int
+		for {
+			if fileResp, err := dl.api.GetFileDetails(fileID); err != nil {
+				log.Printf("Error getting file details for file with ID %d. Error is %s", fileID, err)
+			} else {
+				dl.downloadAudioFile(audioLibrary, fileID, fileResp)
+				break
+			}
+			if i < maxDownloadRetries {
+				log.Println("Trying again in", retryDownloadInterval)
+				time.Sleep(retryDownloadInterval)
+				i++
+			} else {
+				break
+			}
 		}
-
-		dl.downloadAudioFile(audioLibrary, fileID, fileResp)
 
 	}
 
