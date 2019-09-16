@@ -34,7 +34,7 @@ const (
 	updateScheduleInterval = time.Minute * 100
 )
 
-var errNoSchedule = errors.New("no audio schedule for device, or no sounds to play in schedule")
+var errTryLater = errors.New("error getting schedule, try again later")
 
 // version is populated at link time via goreleaser
 var version = "No version provided"
@@ -81,9 +81,9 @@ func runMain() error {
 
 		soundsDownloaded := false
 		for i := 1; i <= maxRetries; i++ {
-			if err := DownloadAndPlaySounds(conf.AudioDir, soundCard); err == errNoSchedule {
+			if err := DownloadAndPlaySounds(conf.AudioDir, soundCard); err == errTryLater {
 				log.Println(err)
-				log.Printf("waiting %s until updateing scheduel", updateScheduleInterval)
+				log.Printf("waiting %s until updateing schedule", updateScheduleInterval)
 				time.Sleep(updateScheduleInterval)
 			} else if err != nil {
 				log.Println("Error dowloading sounds and schedule:", err)
@@ -116,7 +116,7 @@ func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) erro
 
 		schedule := downloader.GetTodaysSchedule()
 		if len(schedule.Combos) == 0 {
-			return errNoSchedule
+			return errTryLater
 		}
 
 		files, err := downloader.GetFilesForSchedule(schedule)
@@ -129,7 +129,7 @@ func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) erro
 		waitTime := player.TimeUntilNextCombo(schedule.Combos)
 
 		if waitTime > updateScheduleInterval {
-			time.Sleep(updateScheduleInterval)
+			return errTryLater
 		} else {
 			log.Printf("Playing todays audiobait schedule...")
 			player.PlayTodaysSchedule(schedule)
