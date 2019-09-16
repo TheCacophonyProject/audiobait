@@ -230,6 +230,11 @@ func (sp SchedulePlayer) createWindow(combo Combo) *window.Window {
 	return win
 }
 
+func (sp SchedulePlayer) TimeUntilNextCombo(combos []Combo) time.Duration {
+	count := sp.findNextCombo(combos)
+	return sp.createWindow(combos[count]).Until()
+}
+
 // playSounds plays the sounds for a combo.
 func (sp SchedulePlayer) playSounds(combo Combo, chooser *SoundChooser) {
 	log.Print("Starting sound burst")

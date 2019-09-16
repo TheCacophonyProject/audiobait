@@ -28,8 +28,13 @@ import (
 	"github.com/TheCacophonyProject/audiobait/playlist"
 )
 
-const maxRetries = 4
-const retryInterval = 30 * time.Second
+const (
+	maxRetries             = 4
+	retryInterval          = 30 * time.Second
+	updateScheduleInterval = time.Minute * 100
+)
+
+var errTryLater = errors.New("error getting schedule, try again later")
 
 // version is populated at link time via goreleaser
 var version = "No version provided"
@@ -76,8 +81,11 @@ func runMain() error {
 
 		soundsDownloaded := false
 		for i := 1; i <= maxRetries; i++ {
-			err = DownloadAndPlaySounds(conf.AudioDir, soundCard)
-			if err != nil {
+			if err := DownloadAndPlaySounds(conf.AudioDir, soundCard); err == errTryLater {
+				log.Println(err)
+				log.Printf("waiting %s until updateing schedule", updateScheduleInterval)
+				time.Sleep(updateScheduleInterval)
+			} else if err != nil {
 				log.Println("Error dowloading sounds and schedule:", err)
 				if i < maxRetries {
 					log.Println("Trying again in", retryInterval)
@@ -91,35 +99,41 @@ func runMain() error {
 		}
 
 		if !soundsDownloaded {
-			log.Println("Could not download sounds and schedule.")
+			log.Println("Could not download sounds and schedule. Will try again tomorrow")
 		}
 
 		// Wait until tomorrow.
 		playlist.WaitUntilNextDay()
-
 	}
-
 }
 
 func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) error {
-	downloader, err := NewDownloader(audioDir)
-	if err != nil {
-		return err
-	}
+	for {
+		downloader, err := NewDownloader(audioDir)
+		if err != nil {
+			return err
+		}
 
-	schedule := downloader.GetTodaysSchedule()
-	if len(schedule.Combos) == 0 {
-		return errors.New("No audio schedule for device, or no sounds to play in schedule.")
-	}
+		schedule := downloader.GetTodaysSchedule()
+		if len(schedule.Combos) == 0 {
+			return errTryLater
+		}
 
-	files, err := downloader.GetFilesForSchedule(schedule)
-	if err != nil {
-		return err
-	}
+		files, err := downloader.GetFilesForSchedule(schedule)
+		if err != nil {
+			return err
+		}
 
-	log.Printf("Playing todays audiobait schedule...")
-	player := playlist.NewPlayer(soundCard, files, audioDir)
-	player.SetRecorder(AudioBaitEventRecorder{})
-	player.PlayTodaysSchedule(schedule)
-	return nil
+		player := playlist.NewPlayer(soundCard, files, audioDir)
+		player.SetRecorder(AudioBaitEventRecorder{})
+		waitTime := player.TimeUntilNextCombo(schedule.Combos)
+
+		if waitTime > updateScheduleInterval {
+			return errTryLater
+		} else {
+			log.Printf("Playing todays audiobait schedule...")
+			player.PlayTodaysSchedule(schedule)
+			return nil
+		}
+	}
 }
