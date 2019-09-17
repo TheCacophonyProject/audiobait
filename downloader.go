@@ -210,8 +210,7 @@ func (dl *Downloader) downloadAudioFile(audioLibrary *AudioFileLibrary, fileID i
 	fileNameOnDisk := MakeFileName(fileResp.File.Details.OriginalName, fileResp.File.Details.Name, fileID)
 	log.Printf("Processing file with id %d and name %s.", fileID, fileNameOnDisk)
 
-	var i int
-	for {
+	for i := 1; i <= maxDownloadRetries; i++ {
 		if err := dl.api.DownloadFile(fileResp, filepath.Join(dl.audioDir, fileNameOnDisk)); err != nil {
 			log.Printf("Error dowloading sound file id %d and name %s.  Error is %s.", fileID, fileNameOnDisk, err)
 		} else {
@@ -226,9 +225,6 @@ func (dl *Downloader) downloadAudioFile(audioLibrary *AudioFileLibrary, fileID i
 		if i < maxDownloadRetries {
 			log.Println("Trying again in", retryDownloadInterval)
 			time.Sleep(retryDownloadInterval)
-			i++
-		} else {
-			break
 		}
 	}
 
@@ -242,8 +238,8 @@ func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, refere
 
 	for _, fileID := range referencedFiles {
 
-		var i int
-		for {
+		// Get file details then download the file.  Try more than once if necessary.
+		for i := 1; i <= maxDownloadRetries; i++ {
 			if fileResp, err := dl.api.GetFileDetails(fileID); err != nil {
 				log.Printf("Error getting file details for file with ID %d. Error is %s", fileID, err)
 			} else {
@@ -253,9 +249,6 @@ func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, refere
 			if i < maxDownloadRetries {
 				log.Println("Trying again in", retryDownloadInterval)
 				time.Sleep(retryDownloadInterval)
-				i++
-			} else {
-				break
 			}
 		}
 
