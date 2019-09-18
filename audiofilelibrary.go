@@ -69,6 +69,10 @@ func OpenLibrary(soundsDirectory string) (*AudioFileLibrary, error) {
 	// Get IDs from the filenames.
 	for _, file := range files {
 		fileID, err := extractIDFromFileName(file.Name())
+		if file.Name() == scheduleFilename {
+			// This is the schedule file, just ignore it here.
+			continue
+		}
 		if err == nil {
 			library.FilesByID[fileID] = file.Name()
 		} else {
