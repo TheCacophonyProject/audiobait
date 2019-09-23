@@ -41,12 +41,14 @@ const (
 	retryDownloadInterval = 30 * time.Second
 )
 
+// Downloader struct
 type Downloader struct {
 	api      *api.CacophonyAPI
 	audioDir string
 	cr       *connrequester.ConnectionRequester
 }
 
+// NewDownloader creates a new downloader struct variable.
 func NewDownloader(audioPath string) (*Downloader, error) {
 	if err := createAudioPath(audioPath); err != nil {
 		return nil, err
@@ -57,11 +59,15 @@ func NewDownloader(audioPath string) (*Downloader, error) {
 		audioDir: audioPath,
 	}
 
-	log.Println("requesting internet connection")
+	log.Println("Requesting internet connection")
 	d.cr.Start()
 	defer d.cr.Stop()
-	d.cr.WaitUntilUpLoop(connTimeout, connRetryInterval, -1)
-	log.Println("internet connection made")
+	err := d.cr.WaitUntilUpLoop(connTimeout, connRetryInterval, maxConnRetries)
+	if err != nil {
+		log.Println("No internet connection made")
+		return d, errNoInternetConnection
+	}
+	log.Println("Internet connection made")
 
 	cacAPI, err := tryToInitiateAPI()
 	if err != nil {
@@ -114,6 +120,8 @@ func (dl *Downloader) loadScheduleFromDisk() (playlist.Schedule, error) {
 	return sr.Schedule, nil
 }
 
+// GetTodaysSchedule tries to download the schedule for the device from the API server.
+// If it can, that is used, if it can't it attempts to load the last downloaded schedule from disk.
 func (dl *Downloader) GetTodaysSchedule() playlist.Schedule {
 
 	if dl.api != nil {
@@ -141,7 +149,10 @@ func (dl *Downloader) GetTodaysSchedule() playlist.Schedule {
 	return schedule
 }
 
-// GetFilesForSchedule will get all files from the IDs in the schedule and save to disk.
+// GetFilesForSchedule will attempt to get all files from the IDs in the schedule from the API server
+// and save to disk.
+// But if there is no internet connection, it will just return a list of the files currently on disk
+// for the schedule.
 func (dl *Downloader) GetFilesForSchedule(schedule playlist.Schedule) (map[int]string, error) {
 
 	referencedFiles := schedule.GetReferencedSounds()
@@ -154,11 +165,17 @@ func (dl *Downloader) GetFilesForSchedule(schedule playlist.Schedule) (map[int]s
 
 	dl.cr.Start()
 	defer dl.cr.Stop()
-	if err := dl.cr.WaitUntilUpLoop(connTimeout, connRetryInterval, maxConnRetries); err != nil {
-		return nil, err
-	}
-	if dl.api != nil {
-		dl.downloadAllNewFiles(audioLibrary, referencedFiles)
+	err = dl.cr.WaitUntilUpLoop(connTimeout, connRetryInterval, maxConnRetries)
+	if err == nil {
+		if dl.api != nil {
+			dl.downloadAllNewFiles(audioLibrary, referencedFiles)
+		}
+	} else {
+		log.Println("No internet connection made")
+		if len(audioLibrary.FilesByID) == 0 {
+			return nil, errors.New("Zero files on disk")
+		}
+		log.Printf("Using %d files on disk", len(audioLibrary.FilesByID))
 	}
 
 	availableFiles := dl.listAvailableFiles(audioLibrary, referencedFiles)

@@ -30,12 +30,13 @@ import (
 type AudioBaitEventRecorder struct {
 }
 
-func (er AudioBaitEventRecorder) OnAudioBaitPlayed(ts time.Time, fileId int, volume int) {
+// OnAudioBaitPlayed logs an occurrence of an audiobait being played.
+func (er AudioBaitEventRecorder) OnAudioBaitPlayed(ts time.Time, fileID int, volume int) {
 	eventDetails := map[string]interface{}{
 		"description": map[string]interface{}{
 			"type": "audioBait",
 			"details": map[string]interface{}{
-				"fileId": fileId,
+				"fileId": fileID,
 				"volume": volume,
 			},
 		},

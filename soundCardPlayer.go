@@ -28,15 +28,18 @@ import (
 	"github.com/godbus/dbus"
 )
 
+// SoundCardPlayer struct contains sound card player info.
 type SoundCardPlayer struct {
 	card        int
 	controlName string
 }
 
+// NewSoundCardPlayer constructs a new sound card player variable.
 func NewSoundCardPlayer(aCard int, aControlName string) SoundCardPlayer {
 	return SoundCardPlayer{card: aCard, controlName: aControlName}
 }
 
+// Play plays an audio file.
 func (p SoundCardPlayer) Play(audioFileName string, volume int) error {
 	if err := p.setVolume(volume); err != nil {
 		return err

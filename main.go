@@ -35,6 +35,7 @@ const (
 )
 
 var errTryLater = errors.New("error getting schedule, try again later")
+var errNoInternetConnection = errors.New("no internet connection")
 
 // version is populated at link time via goreleaser
 var version = "No version provided"
@@ -83,7 +84,7 @@ func runMain() error {
 		for i := 1; i <= maxRetries; i++ {
 			if err := DownloadAndPlaySounds(conf.AudioDir, soundCard); err == errTryLater {
 				log.Println(err)
-				log.Printf("waiting %s until updateing schedule", updateScheduleInterval)
+				log.Printf("waiting %s until updating schedule", updateScheduleInterval)
 				time.Sleep(updateScheduleInterval)
 			} else if err != nil {
 				log.Println("Error dowloading sounds and schedule:", err)
@@ -107,10 +108,12 @@ func runMain() error {
 	}
 }
 
+// DownloadAndPlaySounds creates a new downloader and downloads schedules and audio files from the API server.
+// In the event of there being no internet connection, the last downloaded schedule and audio files are used.
 func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) error {
 	for {
 		downloader, err := NewDownloader(audioDir)
-		if err != nil {
+		if err != nil && err != errNoInternetConnection {
 			return err
 		}
 
@@ -129,11 +132,12 @@ func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) erro
 		waitTime := player.TimeUntilNextCombo(schedule.Combos)
 
 		if waitTime > updateScheduleInterval {
+			log.Printf("Next combo is due to be played in %s, so will try and download schedule and sounds nearer to that time.", waitTime)
 			return errTryLater
-		} else {
-			log.Printf("Playing todays audiobait schedule...")
-			player.PlayTodaysSchedule(schedule)
-			return nil
 		}
+		log.Printf("Playing todays audiobait schedule...")
+		player.PlayTodaysSchedule(schedule)
+		return nil
+
 	}
 }
