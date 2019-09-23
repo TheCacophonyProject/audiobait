@@ -173,7 +173,8 @@ func (dl *Downloader) GetFilesForSchedule(schedule playlist.Schedule) (map[int]s
 	} else {
 		log.Println("No internet connection made")
 		if len(audioLibrary.FilesByID) == 0 {
-			return nil, errors.New("Zero files on disk")
+			log.Println("Zero files on disk")
+			return nil, errTryLater
 		}
 		log.Printf("Using %d files on disk", len(audioLibrary.FilesByID))
 	}

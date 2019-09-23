@@ -34,7 +34,7 @@ const (
 	updateScheduleInterval = time.Minute * 100
 )
 
-var errTryLater = errors.New("error getting schedule, try again later")
+var errTryLater = errors.New("error getting schedule and/or files, try again later")
 var errNoInternetConnection = errors.New("no internet connection")
 
 // version is populated at link time via goreleaser
