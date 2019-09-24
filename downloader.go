@@ -41,35 +41,62 @@ const (
 	retryDownloadInterval = 30 * time.Second
 )
 
+// Downloader holds info and has methods for downloading audio bait files.
 type Downloader struct {
 	api      *api.CacophonyAPI
 	audioDir string
 	cr       *connrequester.ConnectionRequester
 }
 
-func NewDownloader(audioPath string) (*Downloader, error) {
-	if err := createAudioPath(audioPath); err != nil {
-		return nil, err
+// UseAudioScheduleAndFilesOnDisk tries to use the audio bait info on the device's disk.
+// Nothing is downloaded over the internet.
+func (dl *Downloader) UseAudioScheduleAndFilesOnDisk() (playlist.Schedule, map[int]string, error) {
+
+	schedule, err := dl.loadScheduleFromDisk()
+	if err != nil {
+		log.Println("Can not read schedule from disk.")
+		return playlist.Schedule{}, nil, err
 	}
 
-	d := &Downloader{
-		cr:       connrequester.NewConnectionRequester(),
-		audioDir: audioPath,
+	referencedFiles := schedule.GetReferencedSounds()
+	audioLibrary, err := OpenLibrary(dl.audioDir)
+	if err != nil {
+		return schedule, nil, err
 	}
 
-	log.Println("requesting internet connection")
-	d.cr.Start()
-	defer d.cr.Stop()
-	d.cr.WaitUntilUpLoop(connTimeout, connRetryInterval, -1)
-	log.Println("internet connection made")
+	// Check to see if each file referenced in the schedule is on disk.
+	allFilesExistOnDisk := true
+	for _, fileID := range referencedFiles {
+		_, exists := audioLibrary.GetFileNameOnDisk(fileID)
+		if !exists {
+			log.Println("File with ID", fileID, "not on disk.")
+			allFilesExistOnDisk = false // File missing on disk, give up.
+			break
+		}
+	}
+	if !allFilesExistOnDisk {
+		return schedule, nil, errors.New("not all schedule files on disk")
+	}
+	// Success!
+	log.Println("Audiobait info successfully read from disk.")
+	files := dl.listAvailableFiles(audioLibrary, referencedFiles)
+	return schedule, files, nil
 
-	cacAPI, err := tryToInitiateAPI()
+}
+
+func connectToInternet() (*connrequester.ConnectionRequester, error) {
+
+	cr := connrequester.NewConnectionRequester()
+	log.Println("Requesting internet connection")
+	cr.Start()
+	defer cr.Stop()
+	err := cr.WaitUntilUpLoop(connTimeout, connRetryInterval, maxConnRetries)
 	if err != nil {
 		return nil, err
 	}
-	d.api = cacAPI
+	log.Println("Internet connection made")
+	return cr, nil
 
-	return d, nil
 }
 
 func createAudioPath(audioPath string) error {
@@ -114,7 +141,9 @@ func (dl *Downloader) loadScheduleFromDisk() (playlist.Schedule, error) {
 	return sr.Schedule, nil
 }
 
-func (dl *Downloader) GetTodaysSchedule() playlist.Schedule {
+// GetTodaysSchedule tries to get the schedule from the API server, and if it can't
+// it tries to load one from disk.
+func (dl *Downloader) GetTodaysSchedule() (playlist.Schedule, error) {
 
 	if dl.api != nil {
 		log.Println("Downloading schedule from server")
@@ -124,11 +153,12 @@ func (dl *Downloader) GetTodaysSchedule() playlist.Schedule {
 			log.Println(err)
 		} else {
 			if schedule, err := dl.downloadSchedule(); err == nil {
-				// success!
-				return schedule
+				// Success!
+				return schedule, nil
 			}
-			log.Printf("Failed to download schedule: %s", err)
+			log.Println(err)
 		}
+		log.Println("Failed to download schedule")
 	}
 
 	// Otherwise try loading from disk
@@ -136,9 +166,10 @@ func (dl *Downloader) GetTodaysSchedule() playlist.Schedule {
 	schedule, err := dl.loadScheduleFromDisk()
 	if err != nil {
 		log.Printf("Failed to load schedule from disk.  %s", err)
+		return playlist.Schedule{}, err
 	}
+	return schedule, nil
 
-	return schedule
 }
 
 // GetFilesForSchedule will get all files from the IDs in the schedule and save to disk.

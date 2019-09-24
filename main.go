@@ -26,12 +26,19 @@ import (
 	arg "github.com/alexflint/go-arg"
 
 	"github.com/TheCacophonyProject/audiobait/playlist"
+	"github.com/TheCacophonyProject/go-api"
+	"github.com/TheCacophonyProject/modemd/connrequester"
 )
 
 const (
-	maxRetries             = 4
-	retryInterval          = 30 * time.Second
-	updateScheduleInterval = time.Minute * 100
+	maxInternetConnectionRetries    = 3
+	retryInternetConnectionInterval = time.Minute * 100
+
+	maxAPIConnectionRetries    = 3
+	retryAPIConnectionInterval = time.Second * 30
+
+	maxScheduleRetries    = 3
+	retryScheduleInterval = time.Minute * 100
 )
 
 var errTryLater = errors.New("error getting schedule, try again later")
@@ -74,66 +81,120 @@ func runMain() error {
 		return err
 	}
 
-	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
+	// Make sure the path to where we keep the schedule and audio files is OK.
+	if err := createAudioPath(conf.AudioDir); err != nil {
+		// This is a pretty fundamental error.  We can't do anything without this.
+		log.Println("Can not create audio directory.")
+		return err
+	}
 	log.Printf("Audio files directory is %s", conf.AudioDir)
+
+	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
 
 	for {
 
-		soundsDownloaded := false
-		for i := 1; i <= maxRetries; i++ {
-			if err := DownloadAndPlaySounds(conf.AudioDir, soundCard); err == errTryLater {
+		// Check internet connection.
+		internetConnection := false
+		var connReq *connrequester.ConnectionRequester
+		for i := 1; i <= maxInternetConnectionRetries; i++ {
+			connReq, err = connectToInternet()
+			if err != nil {
 				log.Println(err)
-				log.Printf("waiting %s until updateing schedule", updateScheduleInterval)
-				time.Sleep(updateScheduleInterval)
-			} else if err != nil {
-				log.Println("Error dowloading sounds and schedule:", err)
-				if i < maxRetries {
-					log.Println("Trying again in", retryInterval)
-					time.Sleep(retryInterval)
-				}
+				log.Printf("Waiting %s to try and connect to internet again.", retryInternetConnectionInterval)
+				time.Sleep(retryInternetConnectionInterval)
 			} else {
-				soundsDownloaded = true
-				log.Println("Successfully downloaded sounds and schedule.")
+				// We have internet.
+				internetConnection = true
 				break
 			}
 		}
+		if !internetConnection {
+			log.Println("Could not connect to the internet. Will attempt to use schedule and files on disk.")
+			downloader := &Downloader{
+				audioDir: conf.AudioDir,
+			}
+			schedule, files, err := downloader.UseAudioScheduleAndFilesOnDisk()
+			if err != nil {
+				log.Println(err)
+			} else {
+				playTodaysAudioSchedule(soundCard, files, conf.AudioDir, schedule)
+			}
 
-		if !soundsDownloaded {
-			log.Println("Could not download sounds and schedule. Will try again tomorrow")
+			// Wait until tomorrow.
+			playlist.WaitUntilNextDay()
+			continue
+		}
+
+		// Have internet, now try and get an API Server connection.
+		APIConnection := false
+		var cacAPI *api.CacophonyAPI
+		for i := 1; i <= maxAPIConnectionRetries; i++ {
+			cacAPI, err = tryToInitiateAPI()
+			if err != nil {
+				log.Println(err)
+				log.Printf("Waiting %s to try and connect to API server again.", retryAPIConnectionInterval)
+				time.Sleep(retryAPIConnectionInterval)
+			} else {
+				// We have a connection to the API Server.
+				APIConnection = true
+				break
+			}
+		}
+		if !APIConnection {
+			log.Println("Could not connect to the API server.")
+			// Wait until tomorrow.
+			playlist.WaitUntilNextDay()
+			continue
+		}
+
+		// Download schedule and files. Create a downloader object to do this for us.
+		downloader := &Downloader{
+			cr:       connReq,
+			audioDir: conf.AudioDir,
+			api:      cacAPI,
+		}
+
+		// Get schedule
+		gotSchedule := false
+		var schedule playlist.Schedule
+		for i := 1; i <= maxScheduleRetries; i++ {
+			schedule, err = downloader.GetTodaysSchedule()
+			if err != nil {
+				log.Println(err)
+				log.Printf("Waiting %s to try and download schedule.", retryScheduleInterval)
+				time.Sleep(retryScheduleInterval)
+			} else {
+				// We have a schedule
+				gotSchedule = true
+				break
+			}
+		}
+		if !gotSchedule {
+			log.Println("Could not obtain a schedule.")
+			// Wait until tomorrow.
+			playlist.WaitUntilNextDay()
+			continue
+		}
+
+		// Get files in schedule. This is tried multiple times so no need to retry here.
+		files, err := downloader.GetFilesForSchedule(schedule)
+		if err != nil {
+			log.Println(err)
+		} else {
+			playTodaysAudioSchedule(soundCard, files, conf.AudioDir, schedule)
 		}
 
 		// Wait until tomorrow.
 		playlist.WaitUntilNextDay()
+
 	}
 }
 
-func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) error {
-	for {
-		downloader, err := NewDownloader(audioDir)
-		if err != nil {
-			return err
-		}
+// Play the current day's schedule of audio lures.
+func playTodaysAudioSchedule(soundCard SoundCardPlayer, files map[int]string, audioDirectory string, schedule playlist.Schedule) {
+	log.Printf("Playing todays audiobait schedule...")
+	player := playlist.NewPlayer(soundCard, files, audioDirectory)
+	player.SetRecorder(AudioBaitEventRecorder{})
+	player.PlayTodaysSchedule(schedule)
 
-		schedule := downloader.GetTodaysSchedule()
-		if len(schedule.Combos) == 0 {
-			return errTryLater
-		}
-
-		files, err := downloader.GetFilesForSchedule(schedule)
-		if err != nil {
-			return err
-		}
-
-		player := playlist.NewPlayer(soundCard, files, audioDir)
-		player.SetRecorder(AudioBaitEventRecorder{})
-		waitTime := player.TimeUntilNextCombo(schedule.Combos)
-
-		if waitTime > updateScheduleInterval {
-			return errTryLater
-		} else {
-			log.Printf("Playing todays audiobait schedule...")
-			player.PlayTodaysSchedule(schedule)
-			return nil
-		}
-	}
 }
