@@ -26,6 +26,7 @@ import (
 	arg "github.com/alexflint/go-arg"
 
 	"github.com/TheCacophonyProject/audiobait/playlist"
+	goconfig "github.com/TheCacophonyProject/go-config"
 )
 
 const (
@@ -40,7 +41,7 @@ var errTryLater = errors.New("error getting schedule, try again later")
 var version = "No version provided"
 
 type argSpec struct {
-	ConfigFile string `arg:"-c,--config" help:"path to configuration file"`
+	ConfigDir  string `arg:"-c,--config" help:"path to configuration directory"`
 	Timestamps bool   `arg:"-t,--timestamps" help:"include timestamps in log output"`
 }
 
@@ -50,7 +51,7 @@ func (argSpec) Version() string {
 
 func procArgs() argSpec {
 	var args argSpec
-	args.ConfigFile = "/etc/audiobait.yaml"
+	args.ConfigDir = goconfig.DefaultConfigDir
 	arg.MustParse(&args)
 	return args
 }
@@ -69,19 +70,19 @@ func runMain() error {
 	}
 
 	log.Printf("version %s", version)
-	conf, err := ParseConfigFile(args.ConfigFile)
+	conf, err := ParseConfig(args.ConfigDir)
 	if err != nil {
 		return err
 	}
 
 	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
-	log.Printf("Audio files directory is %s", conf.AudioDir)
+	log.Printf("Audio files directory is %s", conf.Dir)
 
 	for {
 
 		soundsDownloaded := false
 		for i := 1; i <= maxRetries; i++ {
-			if err := DownloadAndPlaySounds(conf.AudioDir, soundCard); err == errTryLater {
+			if err := DownloadAndPlaySounds(conf.Dir, soundCard); err == errTryLater {
 				log.Println(err)
 				log.Printf("waiting %s until updateing schedule", updateScheduleInterval)
 				time.Sleep(updateScheduleInterval)

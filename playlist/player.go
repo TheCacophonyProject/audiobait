@@ -225,7 +225,7 @@ func (sp SchedulePlayer) playCombo(combo Combo) bool {
 
 // createWindow creates a window with the times specified in the combo definition
 func (sp SchedulePlayer) createWindow(combo Combo) *window.Window {
-	win := window.New(combo.From.Time, combo.Until.Time)
+	win, _ := window.New(combo.From.Time.Format("15:04"), combo.Until.Time.Format("15:04"), 0, 0)
 	win.Now = sp.time.Now
 	return win
 }
