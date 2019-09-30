@@ -81,14 +81,6 @@ func newSchedulePlayerWithClock(audioDevice AudioDevice,
 	return &SchedulePlayer{player: audioDevice, time: clock, allSounds: allSoundsMap, filesDir: filesDirectory}
 }
 
-// WaitUntilNextDay calculates when out when the next audiobait day starts (typically around midday) and wait until then.
-// It always uses the standard go time.
-func WaitUntilNextDay() {
-	log.Println("No more audiobait scheduled for today. Waiting until new day starts (sometime around midday)")
-	now := time.Now()
-	time.Sleep(nextDayStart(now).Sub(now))
-}
-
 // nextDayStart calculates when the next audiobait day starts (typically around midday).
 func nextDayStart(now time.Time) time.Time {
 	// start hour and minute today
@@ -100,6 +92,17 @@ func nextDayStart(now time.Time) time.Time {
 	} else {
 		return todayChangeOverTime
 	}
+}
+
+func (sp SchedulePlayer) TimeUntilNextCombo(schedule Schedule) time.Duration {
+	combos := schedule.Combos
+
+	if !sp.IsSoundPlayingDay(schedule) {
+		return 12 * time.Hour
+	}
+
+	i := sp.findNextCombo(combos)
+	return sp.createWindow(combos[i]).Until()
 }
 
 // findNextCombo takes and array of schedule combos and works out which one
@@ -131,7 +134,10 @@ func (sp *SchedulePlayer) SetRecorder(recorder SoundPlayedRecorder) {
 // sounds are attracting more animals or not.   They may also help stop animals getting
 // attuned to hearing the sounds.
 func (sp SchedulePlayer) IsSoundPlayingDay(schedule Schedule) bool {
-	if schedule.ControlNights <= 0 {
+	if len(schedule.Combos) < 1 {
+		return false
+	}
+	if schedule.ControlNights < 1 {
 		return true
 	}
 
@@ -152,16 +158,10 @@ func (sp SchedulePlayer) IsSoundPlayingDay(schedule Schedule) bool {
 
 // PlayTodaysSchedule plays todays schedule or if it is a control day it waits until the start of the next day
 func (sp SchedulePlayer) PlayTodaysSchedule(schedule Schedule) {
-	tomorrowStart := sp.nextDayStart()
 	if sp.IsSoundPlayingDay(schedule) {
 		log.Println("Today is an audiobait day.  Lets see what animals we can attract...")
 		sp.playTodaysCombos(schedule.Combos)
-	} else {
-		log.Println("Today is a control day and no audiobait sounds will be played.")
 	}
-	log.Println("No more audiobait scheduled for today. Waiting until new day starts (sometime around midday)")
-
-	sp.time.Wait(tomorrowStart.Sub(sp.time.Now()))
 }
 
 // PlayTodaysCombos plays the given combos - doesn't not care whether it is a control day
@@ -188,7 +188,7 @@ func (sp SchedulePlayer) nextDayStart() time.Time {
 }
 
 // playCombo plays a single combo
-func (sp SchedulePlayer) playCombo(combo Combo) bool {
+func (sp SchedulePlayer) playCombo(combo Combo) {
 	const startOfIntervalFuzzyFactor = 3 * time.Second
 	win := sp.createWindow(combo)
 	soundChooser := NewSoundChooser(sp.allSounds)
@@ -218,7 +218,7 @@ func (sp SchedulePlayer) playCombo(combo Combo) bool {
 		} else {
 			log.Print("Played last burst, sleeping until near end of window")
 			sp.time.Wait(win.UntilEnd()) // Stop 3s early so we don't miss the start of the next interval
-			return true
+			return
 		}
 	}
 }
@@ -228,11 +228,6 @@ func (sp SchedulePlayer) createWindow(combo Combo) *window.Window {
 	win := window.New(combo.From.Time, combo.Until.Time)
 	win.Now = sp.time.Now
 	return win
-}
-
-func (sp SchedulePlayer) TimeUntilNextCombo(combos []Combo) time.Duration {
-	count := sp.findNextCombo(combos)
-	return sp.createWindow(combos[count]).Until()
 }
 
 // playSounds plays the sounds for a combo.

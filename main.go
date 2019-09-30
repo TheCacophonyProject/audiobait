@@ -20,25 +20,15 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"math/rand"
+	"os"
 	"time"
 
 	arg "github.com/alexflint/go-arg"
 
 	"github.com/TheCacophonyProject/audiobait/playlist"
-	"github.com/TheCacophonyProject/go-api"
-	"github.com/TheCacophonyProject/modemd/connrequester"
-)
-
-const (
-	maxInternetConnectionRetries    = 3
-	retryInternetConnectionInterval = time.Minute * 100
-
-	maxAPIConnectionRetries    = 3
-	retryAPIConnectionInterval = time.Second * 30
-
-	maxScheduleRetries    = 3
-	retryScheduleInterval = time.Minute * 100
 )
 
 var errTryLater = errors.New("error getting schedule, try again later")
@@ -70,6 +60,8 @@ func main() {
 }
 
 func runMain() error {
+	rand.Seed(time.Now().UnixNano())
+
 	args := procArgs()
 	if !args.Timestamps {
 		log.SetFlags(0) // Removes default timestamp flag
@@ -84,117 +76,78 @@ func runMain() error {
 	// Make sure the path to where we keep the schedule and audio files is OK.
 	if err := createAudioPath(conf.AudioDir); err != nil {
 		// This is a pretty fundamental error.  We can't do anything without this.
-		log.Println("Can not create audio directory.")
 		return err
 	}
 	log.Printf("Audio files directory is %s", conf.AudioDir)
 
+	// Start checking for new schedules
+	dl := NewDownloader(conf.AudioDir)
+
 	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
 
+	var playTime <-chan time.Time
 	for {
-
-		// Check internet connection.
-		internetConnection := false
-		var connReq *connrequester.ConnectionRequester
-		for i := 1; i <= maxInternetConnectionRetries; i++ {
-			connReq, err = connectToInternet()
-			if err != nil {
-				log.Println(err)
-				log.Printf("Waiting %s to try and connect to internet again.", retryInternetConnectionInterval)
-				time.Sleep(retryInternetConnectionInterval)
-			} else {
-				// We have internet.
-				internetConnection = true
-				break
-			}
-		}
-		if !internetConnection {
-			log.Println("Could not connect to the internet. Will attempt to use schedule and files on disk.")
-			downloader := &Downloader{
-				audioDir: conf.AudioDir,
-			}
-			schedule, files, err := downloader.UseAudioScheduleAndFilesOnDisk()
-			if err != nil {
-				log.Println(err)
-			} else {
-				playTodaysAudioSchedule(soundCard, files, conf.AudioDir, schedule)
-			}
-
-			// Wait until tomorrow.
-			playlist.WaitUntilNextDay()
-			continue
-		}
-
-		// Have internet, now try and get an API Server connection.
-		APIConnection := false
-		var cacAPI *api.CacophonyAPI
-		for i := 1; i <= maxAPIConnectionRetries; i++ {
-			cacAPI, err = tryToInitiateAPI()
-			if err != nil {
-				log.Println(err)
-				log.Printf("Waiting %s to try and connect to API server again.", retryAPIConnectionInterval)
-				time.Sleep(retryAPIConnectionInterval)
-			} else {
-				// We have a connection to the API Server.
-				APIConnection = true
-				break
-			}
-		}
-		if !APIConnection {
-			log.Println("Could not connect to the API server.")
-			// Wait until tomorrow.
-			playlist.WaitUntilNextDay()
-			continue
-		}
-
-		// Download schedule and files. Create a downloader object to do this for us.
-		downloader := &Downloader{
-			cr:       connReq,
-			audioDir: conf.AudioDir,
-			api:      cacAPI,
-		}
-
-		// Get schedule
-		gotSchedule := false
-		var schedule playlist.Schedule
-		for i := 1; i <= maxScheduleRetries; i++ {
-			schedule, err = downloader.GetTodaysSchedule()
-			if err != nil {
-				log.Println(err)
-				log.Printf("Waiting %s to try and download schedule.", retryScheduleInterval)
-				time.Sleep(retryScheduleInterval)
-			} else {
-				// We have a schedule
-				gotSchedule = true
-				break
-			}
-		}
-		if !gotSchedule {
-			log.Println("Could not obtain a schedule.")
-			// Wait until tomorrow.
-			playlist.WaitUntilNextDay()
-			continue
-		}
-
-		// Get files in schedule. This is tried multiple times so no need to retry here.
-		files, err := downloader.GetFilesForSchedule(schedule)
+		log.Print("loading schedule from disk")
+		player, schedule, err := createPlayer(soundCard, conf.AudioDir)
 		if err != nil {
-			log.Println(err)
+			log.Printf("error creating player: %v", err)
+			playTime = nil
 		} else {
-			playTodaysAudioSchedule(soundCard, files, conf.AudioDir, schedule)
+			playTime = time.After(player.TimeUntilNextCombo(*schedule))
 		}
 
-		// Wait until tomorrow.
-		playlist.WaitUntilNextDay()
+		log.Print("waiting")
 
+		select {
+		case <-dl.Updated():
+			log.Print("new schedule - reloading")
+		case <-playTime:
+			log.Printf("Playing todays audiobait schedule...")
+			player.PlayTodaysSchedule(*schedule)
+		}
 	}
 }
 
-// Play the current day's schedule of audio lures.
-func playTodaysAudioSchedule(soundCard SoundCardPlayer, files map[int]string, audioDirectory string, schedule playlist.Schedule) {
-	log.Printf("Playing todays audiobait schedule...")
+func createAudioPath(audioPath string) error {
+	err := os.MkdirAll(audioPath, 0755)
+	if err != nil {
+		return fmt.Errorf("Could not create audio directory: %v", err)
+	}
+	return nil
+}
+
+func createPlayer(soundCard SoundCardPlayer, audioDirectory string) (*playlist.SchedulePlayer, *playlist.Schedule, error) {
+	schedule, err := loadScheduleFromDisk(audioDirectory)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to read schedule from disk: %v", err)
+	}
+
+	files, err := getScheduleFiles(audioDirectory, schedule)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Problem collating files for schedule: %v", err)
+	}
+
 	player := playlist.NewPlayer(soundCard, files, audioDirectory)
 	player.SetRecorder(AudioBaitEventRecorder{})
-	player.PlayTodaysSchedule(schedule)
 
+	return player, schedule, nil
+}
+
+func getScheduleFiles(audioDirectory string, schedule *playlist.Schedule) (map[int]string, error) {
+	referencedFiles := schedule.GetReferencedSounds()
+
+	audioLibrary, err := OpenLibrary(audioDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("error creating audio library: %v", err)
+	}
+
+	files := make(map[int]string)
+	for _, fileID := range referencedFiles {
+		if filename, exists := audioLibrary.GetFileNameOnDisk(fileID); exists {
+			files[fileID] = filename
+		} else {
+			return nil, fmt.Errorf("file for %d is missing (%s)", fileID, filename)
+		}
+	}
+	return files, nil
 }

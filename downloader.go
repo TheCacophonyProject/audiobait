@@ -19,10 +19,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"time"
@@ -33,82 +37,118 @@ import (
 )
 
 const (
-	scheduleFilename      = "schedule.json"
-	connTimeout           = time.Minute * 2
-	connRetryInterval     = time.Minute * 10
-	maxConnRetries        = 3
+	scheduleFilename     = "schedule.json"
+	tempScheduleFilename = "schedule.json.part"
+
+	// Parameters for requesting internet connectivity
+	connTimeout       = time.Minute * 2
+	connRetryInterval = time.Minute * 10
+	maxConnRetries    = 3
+
+	// Parameters for download attempts and
 	maxDownloadRetries    = 4
-	retryDownloadInterval = 30 * time.Second
+	downloadRetryInterval = 30 * time.Second
 )
 
-// Downloader holds info and has methods for downloading audio bait files.
-type Downloader struct {
-	api      *api.CacophonyAPI
-	audioDir string
-	cr       *connrequester.ConnectionRequester
+func NewDownloader(audioDir string) *Downloader {
+	dl := &Downloader{
+		audioDir: audioDir,
+		updated:  make(chan struct{}, 128),
+		stop:     make(chan struct{}),
+	}
+	go dl.loop()
+	return dl
 }
 
-// UseAudioScheduleAndFilesOnDisk tries to use the audio bait info on the device's disk.
-// Nothing is downloaded over the internet.
-func (dl *Downloader) UseAudioScheduleAndFilesOnDisk() (playlist.Schedule, map[int]string, error) {
+// Downloader manages retrieving audio schedules and associated sound files from the API server.
+type Downloader struct {
+	audioDir string
+	updated  chan struct{}
+	stop     chan struct{}
+}
 
-	schedule, err := dl.loadScheduleFromDisk()
-	if err != nil {
-		log.Println("Can not read schedule from disk.")
-		return playlist.Schedule{}, nil, err
-	}
+func (dl *Downloader) Updated() <-chan struct{} {
+	return dl.updated
+}
 
-	referencedFiles := schedule.GetReferencedSounds()
-	audioLibrary, err := OpenLibrary(dl.audioDir)
-	if err != nil {
-		return schedule, nil, err
-	}
+func (dl *Downloader) Stop() {
+	close(dl.stop)
+}
 
-	// Check to see if each file referenced in the schedule is on disk.
-	allFilesExistOnDisk := true
-	for _, fileID := range referencedFiles {
-		_, exists := audioLibrary.GetFileNameOnDisk(fileID)
-		if !exists {
-			log.Println("File with ID", fileID, "not on disk.")
-			allFilesExistOnDisk = false // File missing on disk, give up.
-			break
+func (dl *Downloader) loop() {
+	// Always check for updates on starting
+	nextUpdate := time.After(0)
+
+	for {
+		select {
+		case <-nextUpdate:
+			if changed, err := dl.update(); err != nil {
+				log.Printf("schedule update failed: %v", err)
+			} else if changed {
+				log.Printf("schedule changed")
+				dl.updated <- struct{}{}
+			}
+			// Randomise sleep time between 45 - 75 minutes in order to distribute load on API server
+			checkSleep := time.Duration((45 + rand.Intn(30))) * time.Minute
+			log.Printf("waiting for %s until next schedule check", checkSleep)
+			nextUpdate = time.After(checkSleep)
+		case <-dl.stop:
+			return
 		}
 	}
-	if !allFilesExistOnDisk {
-		return schedule, nil, errors.New("not all schedule files on disk")
-	}
-	// Success!
-	log.Println("Audiobait info successfully read from disk.")
-	files := dl.listAvailableFiles(audioLibrary, referencedFiles)
-	return schedule, files, nil
+}
 
+func (dl *Downloader) update() (bool, error) {
+	log.Println("Requesting internet connection")
+	connReq, err := connectToInternet()
+	if err != nil {
+		return false, err
+	}
+	log.Println("Internet connection made")
+	defer connReq.Stop()
+
+	api, err := initiateAPI()
+	if err != nil {
+		return false, err
+	}
+
+	log.Println("Downloading schedule")
+	schedule, err := dl.downloadSchedule(api)
+	if err != nil {
+		return false, err
+	}
+	log.Println("Schedule downloaded")
+
+	log.Println("Starting downloading audio files.")
+	if err := dl.getFilesForSchedule(api, schedule); err != nil {
+		return false, err
+	}
+	log.Println("All audio files downloaded")
+
+	changed, err := dl.scheduleChanged()
+	if err != nil {
+		return false, errors.New("check for schedule change")
+	}
+
+	if err := dl.activateNewSchedule(); err != nil {
+		return false, fmt.Errorf("problem activating new schedule: %v", err)
+	}
+
+	return changed, nil
 }
 
 func connectToInternet() (*connrequester.ConnectionRequester, error) {
-
 	cr := connrequester.NewConnectionRequester()
-	log.Println("Requesting internet connection")
 	cr.Start()
-	defer cr.Stop()
 	err := cr.WaitUntilUpLoop(connTimeout, connRetryInterval, maxConnRetries)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("Internet connection made")
 	return cr, nil
 
 }
 
-func createAudioPath(audioPath string) error {
-	err := os.MkdirAll(audioPath, 0755)
-	if err != nil {
-		return errors.New("Could not create audioDir.  " + err.Error())
-	}
-	return nil
-}
-
-func tryToInitiateAPI() (*api.CacophonyAPI, error) {
-	log.Println("Connecting with API")
+func initiateAPI() (*api.CacophonyAPI, error) {
 	cacAPI, err := api.New()
 	if api.IsNotRegisteredError(err) {
 		log.Println("device not registered. Exiting and waiting to be restarted")
@@ -120,197 +160,186 @@ func tryToInitiateAPI() (*api.CacophonyAPI, error) {
 	return cacAPI, nil
 }
 
-func (dl *Downloader) saveScheduleToDisk(jsonData []byte) error {
-	filepath := filepath.Join(dl.audioDir, scheduleFilename)
-	err := ioutil.WriteFile(filepath, jsonData, 0644)
-	return err
-}
-
-func (dl *Downloader) loadScheduleFromDisk() (playlist.Schedule, error) {
-	filepath := filepath.Join(dl.audioDir, scheduleFilename)
-	jsonData, err := ioutil.ReadFile(filepath)
-	if err != nil {
-		return playlist.Schedule{}, err
-	}
-
+func (dl *Downloader) downloadSchedule(api *api.CacophonyAPI) (*playlist.Schedule, error) {
 	var sr scheduleResponse
-	if err = json.Unmarshal(jsonData, &sr); err != nil {
-		return playlist.Schedule{}, err
-	}
 
-	return sr.Schedule, nil
-}
-
-// GetTodaysSchedule tries to get the schedule from the API server, and if it can't
-// it tries to load one from disk.
-func (dl *Downloader) GetTodaysSchedule() (playlist.Schedule, error) {
-
-	if dl.api != nil {
-		log.Println("Downloading schedule from server")
-		dl.cr.Start()
-		defer dl.cr.Stop()
-		if err := dl.cr.WaitUntilUpLoop(connTimeout, connRetryInterval, maxConnRetries); err != nil {
-			log.Println(err)
-		} else {
-			if schedule, err := dl.downloadSchedule(); err == nil {
-				// Success!
-				return schedule, nil
+	err := retry(
+		"download schedule",
+		func() error {
+			jsonData, err := api.GetSchedule()
+			if err != nil {
+				return err
 			}
-			log.Println(err)
-		}
-		log.Println("Failed to download schedule")
-	}
+			log.Println("Audio schedule downloaded from server")
 
-	// Otherwise try loading from disk
-	log.Println("Loading schedule from disk")
-	schedule, err := dl.loadScheduleFromDisk()
+			if err := json.Unmarshal(jsonData, &sr); err != nil {
+				return err
+			}
+			log.Println("Audio schedule parsed successfully")
+
+			if err := dl.saveScheduleToDisk(jsonData); err != nil {
+				return fmt.Errorf("failed to save schedule to disk: %v", err)
+			}
+
+			return nil
+		},
+	)
 	if err != nil {
-		log.Printf("Failed to load schedule from disk.  %s", err)
-		return playlist.Schedule{}, err
-	}
-	return schedule, nil
-
-}
-
-// GetFilesForSchedule will get all files from the IDs in the schedule and save to disk.
-func (dl *Downloader) GetFilesForSchedule(schedule playlist.Schedule) (map[int]string, error) {
-
-	referencedFiles := schedule.GetReferencedSounds()
-
-	audioLibrary, err := OpenLibrary(dl.audioDir)
-	if err != nil {
-		log.Println("Error creating audio library.", err)
-		return nil, nil
-	}
-
-	dl.cr.Start()
-	defer dl.cr.Stop()
-	if err := dl.cr.WaitUntilUpLoop(connTimeout, connRetryInterval, maxConnRetries); err != nil {
 		return nil, err
 	}
-	if dl.api != nil {
-		dl.downloadAllNewFiles(audioLibrary, referencedFiles)
-	}
-
-	availableFiles := dl.listAvailableFiles(audioLibrary, referencedFiles)
-
-	return availableFiles, nil
-}
-
-func (dl *Downloader) listAvailableFiles(audioLibrary *AudioFileLibrary, referencedFiles []int) map[int]string {
-	availableFiles := make(map[int]string)
-	for _, fileID := range referencedFiles {
-		if filename, exists := audioLibrary.GetFileNameOnDisk(fileID); exists {
-			availableFiles[fileID] = filename
-		}
-	}
-	return availableFiles
-}
-
-// Check that the sound file is valid.
-func (dl *Downloader) validateSoundFile(fileNameOnDisk string, fileSize int) bool {
-
-	// Check size on disk is the same as the size the api-server tells us this file should be.
-	fileInfo, err := os.Stat(fileNameOnDisk)
-	if err != nil {
-		return false
-	}
-	if fileInfo.Size() != int64(fileSize) {
-		return false
-	}
-
-	return true
-
-}
-
-// Removes a file from the disk of the device.  Also takes it out of the audioLibrary so it won't be accessed later.
-func (dl *Downloader) removeAudioFile(audioLibrary *AudioFileLibrary, fileID int, fileNameOnDisk string) {
-
-	delete(audioLibrary.FilesByID, fileID)
-
-	err := os.Remove(fileNameOnDisk)
-	if err != nil {
-		log.Printf("Could not remove file with ID %d and name %s from disk. Error is: %s", fileID, fileNameOnDisk, err)
-	}
-
-}
-
-// Try and download a single audio file from the API server.
-func (dl *Downloader) downloadAudioFile(audioLibrary *AudioFileLibrary, fileID int, fileResp *api.FileResponse) {
-
-	fileNameOnDisk := MakeFileName(fileResp.File.Details.OriginalName, fileResp.File.Details.Name, fileID)
-	log.Printf("Processing file with id %d and name %s.", fileID, fileNameOnDisk)
-
-	for i := 1; i <= maxDownloadRetries; i++ {
-		if err := dl.api.DownloadFile(fileResp, filepath.Join(dl.audioDir, fileNameOnDisk)); err != nil {
-			log.Printf("Error dowloading sound file id %d and name %s.  Error is %s.", fileID, fileNameOnDisk, err)
-		} else {
-			if dl.validateSoundFile(filepath.Join(dl.audioDir, fileNameOnDisk), fileResp.FileSize) {
-				// File is valid, add it to our audio library.
-				audioLibrary.FilesByID[fileID] = fileNameOnDisk
-				return
-			}
-			log.Printf("File with ID %d and name %s is not valid. Removing from disk.", fileID, fileNameOnDisk)
-			dl.removeAudioFile(audioLibrary, fileID, filepath.Join(dl.audioDir, fileNameOnDisk))
-		}
-		if i < maxDownloadRetries {
-			log.Println("Trying again in", retryDownloadInterval)
-			time.Sleep(retryDownloadInterval)
-		}
-	}
-
-	log.Printf("Could not download and validate file with ID %d and name %s.", fileID, fileNameOnDisk)
-
-}
-
-func (dl *Downloader) downloadAllNewFiles(audioLibrary *AudioFileLibrary, referencedFiles []int) {
-
-	log.Println("Starting downloading audio files.")
-
-	for _, fileID := range referencedFiles {
-
-		// Get file details then download the file.  Try more than once if necessary.
-		for i := 1; i <= maxDownloadRetries; i++ {
-			if fileResp, err := dl.api.GetFileDetails(fileID); err != nil {
-				log.Printf("Error getting file details for file with ID %d. Error is %s", fileID, err)
-			} else {
-				dl.downloadAudioFile(audioLibrary, fileID, fileResp)
-				break
-			}
-			if i < maxDownloadRetries {
-				log.Println("Trying again in", retryDownloadInterval)
-				time.Sleep(retryDownloadInterval)
-			}
-		}
-
-	}
-
-	log.Println("Downloading audio files complete.")
-
-}
-
-// GetSchedule will get the audio schedule
-func (dl *Downloader) downloadSchedule() (playlist.Schedule, error) {
-	jsonData, err := dl.api.GetSchedule()
-	if err != nil {
-		return playlist.Schedule{}, err
-	}
-	log.Println("Audio schedule downloaded from server")
-
-	// parse schedule
-	var sr scheduleResponse
-	if err := json.Unmarshal(jsonData, &sr); err != nil {
-		return playlist.Schedule{}, err
-	}
-	log.Println("Audio schedule parsed sucessfully")
-
-	if err := dl.saveScheduleToDisk(jsonData); err != nil {
-		log.Printf("Failed to save schedule to disk.  Error %s.", err)
-	}
-
-	return sr.Schedule, nil
+	return &sr.Schedule, nil
 }
 
 type scheduleResponse struct {
 	Schedule playlist.Schedule
+}
+
+func loadScheduleFromDisk(audioDirectory string) (*playlist.Schedule, error) {
+	filename := filepath.Join(audioDirectory, scheduleFilename)
+	jsonData, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	var sr scheduleResponse
+	if err = json.Unmarshal(jsonData, &sr); err != nil {
+		return nil, err
+	}
+	return &sr.Schedule, nil
+}
+
+func (dl *Downloader) saveScheduleToDisk(jsonData []byte) error {
+	filename := filepath.Join(dl.audioDir, tempScheduleFilename)
+	return ioutil.WriteFile(filename, jsonData, 0644)
+}
+
+func (dl *Downloader) scheduleChanged() (bool, error) {
+	oldHash, err := md5sum(filepath.Join(dl.audioDir, scheduleFilename))
+	if err != nil {
+		return false, err
+	}
+	newHash, err := md5sum(filepath.Join(dl.audioDir, tempScheduleFilename))
+	if err != nil {
+		return false, err
+	}
+
+	return !bytesEqual(oldHash, newHash), nil
+}
+
+func (dl *Downloader) activateNewSchedule() error {
+	return os.Rename(
+		filepath.Join(dl.audioDir, tempScheduleFilename),
+		filepath.Join(dl.audioDir, scheduleFilename),
+	)
+}
+
+func (dl *Downloader) getFilesForSchedule(api *api.CacophonyAPI, schedule *playlist.Schedule) error {
+	return dl.downloadAllNewFiles(api, schedule.GetReferencedSounds())
+}
+
+func (dl *Downloader) downloadAllNewFiles(api *api.CacophonyAPI, fileIDs []int) error {
+	for _, fileID := range fileIDs {
+		fileResp, err := dl.getFileDetails(api, fileID)
+		if err != nil {
+			return fmt.Errorf("error getting file details for file with ID %d. Error is %s", fileID, err)
+		}
+		if err := dl.downloadAudioFile(api, fileID, fileResp); err != nil {
+			return fmt.Errorf("error downloading file %d: %v", fileID, err)
+		}
+	}
+	return nil
+}
+
+func (dl *Downloader) getFileDetails(apiObj *api.CacophonyAPI, fileID int) (*api.FileResponse, error) {
+	var fileResp *api.FileResponse
+	err := retry(
+		fmt.Sprintf("get details for file %d", fileID),
+		func() error {
+			var err error
+			fileResp, err = apiObj.GetFileDetails(fileID)
+			return err
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return fileResp, nil
+}
+
+// Try and download a single audio file from the API server.
+func (dl *Downloader) downloadAudioFile(api *api.CacophonyAPI, fileID int, fileResp *api.FileResponse) error {
+	filename := MakeFileName(fileResp.File.Details.OriginalName, fileResp.File.Details.Name, fileID)
+
+	return retry(
+		fmt.Sprintf("download and validate file %d", fileID),
+		func() error {
+			// Note: DownloadFile will skip the download if the file already exists.
+			if err := api.DownloadFile(fileResp, filepath.Join(dl.audioDir, filename)); err != nil {
+				return err
+			}
+			if !dl.validateSoundFile(filepath.Join(dl.audioDir, filename), fileResp.FileSize) {
+				log.Printf("%s is not valid. Removing from disk.", filename)
+				if err := os.Remove(filename); err != nil {
+					return fmt.Errorf("could not remove file: %v", err)
+				}
+				return errors.New("download was not valid")
+			}
+			return nil // File is valid
+		},
+	)
+}
+
+// Check that the sound file is valid.
+func (dl *Downloader) validateSoundFile(filename string, expectedSize int) bool {
+	fileInfo, err := os.Stat(filename)
+	if err != nil {
+		return false
+	}
+	return fileInfo.Size() == int64(expectedSize)
+}
+
+func retry(label string, do func() error) error {
+	log.Printf("Starting " + label)
+	attempt := 0
+	for {
+		err := do()
+		if err == nil {
+			return nil
+		}
+		log.Printf("%s attempt failed: %v ", label, err)
+
+		attempt++
+		if attempt < maxDownloadRetries {
+			log.Println("Trying again in", downloadRetryInterval)
+			time.Sleep(downloadRetryInterval)
+		} else {
+			return fmt.Errorf("could not %s after multiple attempts", label)
+		}
+	}
+}
+
+func md5sum(filename string) ([]byte, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	h := md5.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return nil, err
+	}
+	return h.Sum(nil), nil
+}
+
+func bytesEqual(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
