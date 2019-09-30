@@ -20,19 +20,16 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"math/rand"
+	"os"
 	"time"
 
 	arg "github.com/alexflint/go-arg"
 
 	"github.com/TheCacophonyProject/audiobait/playlist"
 	goconfig "github.com/TheCacophonyProject/go-config"
-)
-
-const (
-	maxRetries             = 4
-	retryInterval          = 30 * time.Second
-	updateScheduleInterval = time.Minute * 100
 )
 
 var errTryLater = errors.New("error getting schedule, try again later")
@@ -64,6 +61,8 @@ func main() {
 }
 
 func runMain() error {
+	rand.Seed(time.Now().UnixNano())
+
 	args := procArgs()
 	if !args.Timestamps {
 		log.SetFlags(0) // Removes default timestamp flag
@@ -75,66 +74,84 @@ func runMain() error {
 		return err
 	}
 
-	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
+	// Make sure the path to where we keep the schedule and audio files is OK.
+	if err := createAudioPath(conf.Dir); err != nil {
+		// This is a pretty fundamental error.  We can't do anything without this.
+		return err
+	}
 	log.Printf("Audio files directory is %s", conf.Dir)
 
+	// Start checking for new schedules
+	dl := NewDownloader(conf.Dir)
+
+	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
+
+	var playTime <-chan time.Time
 	for {
-
-		soundsDownloaded := false
-		for i := 1; i <= maxRetries; i++ {
-			if err := DownloadAndPlaySounds(conf.Dir, soundCard); err == errTryLater {
-				log.Println(err)
-				log.Printf("waiting %s until updateing schedule", updateScheduleInterval)
-				time.Sleep(updateScheduleInterval)
-			} else if err != nil {
-				log.Println("Error dowloading sounds and schedule:", err)
-				if i < maxRetries {
-					log.Println("Trying again in", retryInterval)
-					time.Sleep(retryInterval)
-				}
-			} else {
-				soundsDownloaded = true
-				log.Println("Successfully downloaded sounds and schedule.")
-				break
-			}
+		log.Print("loading schedule from disk")
+		player, schedule, err := createPlayer(soundCard, conf.Dir)
+		if err != nil {
+			log.Printf("error creating player: %v (will wait for schedule update)", err)
+			playTime = nil
+		} else if len(schedule.Combos) < 1 {
+			log.Print("No schedule defined - waiting for schedule update")
+			playTime = nil
+		} else {
+			playIn := player.TimeUntilNextCombo(*schedule)
+			log.Printf("waiting %s for schedule to start", playIn)
+			playTime = time.After(playIn)
 		}
 
-		if !soundsDownloaded {
-			log.Println("Could not download sounds and schedule. Will try again tomorrow")
+		select {
+		case <-dl.Updated():
+			log.Print("new schedule - reloading")
+		case <-playTime:
+			log.Printf("Playing todays audiobait schedule...")
+			player.PlayTodaysSchedule(*schedule)
 		}
-
-		// Wait until tomorrow.
-		playlist.WaitUntilNextDay()
 	}
 }
 
-func DownloadAndPlaySounds(audioDir string, soundCard playlist.AudioDevice) error {
-	for {
-		downloader, err := NewDownloader(audioDir)
-		if err != nil {
-			return err
-		}
+func createAudioPath(audioPath string) error {
+	err := os.MkdirAll(audioPath, 0755)
+	if err != nil {
+		return fmt.Errorf("Could not create audio directory: %v", err)
+	}
+	return nil
+}
 
-		schedule := downloader.GetTodaysSchedule()
-		if len(schedule.Combos) == 0 {
-			return errTryLater
-		}
+func createPlayer(soundCard SoundCardPlayer, audioDirectory string) (*playlist.SchedulePlayer, *playlist.Schedule, error) {
+	schedule, err := loadScheduleFromDisk(audioDirectory)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to read schedule from disk: %v", err)
+	}
 
-		files, err := downloader.GetFilesForSchedule(schedule)
-		if err != nil {
-			return err
-		}
+	files, err := getScheduleFiles(audioDirectory, schedule)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Problem collating files for schedule: %v", err)
+	}
 
-		player := playlist.NewPlayer(soundCard, files, audioDir)
-		player.SetRecorder(AudioBaitEventRecorder{})
-		waitTime := player.TimeUntilNextCombo(schedule.Combos)
+	player := playlist.NewPlayer(soundCard, files, audioDirectory)
+	player.SetRecorder(AudioBaitEventRecorder{})
 
-		if waitTime > updateScheduleInterval {
-			return errTryLater
+	return player, schedule, nil
+}
+
+func getScheduleFiles(audioDirectory string, schedule *playlist.Schedule) (map[int]string, error) {
+	referencedFiles := schedule.GetReferencedSounds()
+
+	audioLibrary, err := OpenLibrary(audioDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("error creating audio library: %v", err)
+	}
+
+	files := make(map[int]string)
+	for _, fileID := range referencedFiles {
+		if filename, exists := audioLibrary.GetFileNameOnDisk(fileID); exists {
+			files[fileID] = filename
 		} else {
-			log.Printf("Playing todays audiobait schedule...")
-			player.PlayTodaysSchedule(schedule)
-			return nil
+			return nil, fmt.Errorf("file for %d is missing (%s)", fileID, filename)
 		}
 	}
+	return files, nil
 }
