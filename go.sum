@@ -5,8 +5,9 @@ github.com/Masterminds/glide v0.13.2/go.mod h1:STyF5vcenH/rUqTEv+/hBXlSTo7KYwg2o
 github.com/Masterminds/semver v1.4.2/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=
 github.com/Masterminds/vcs v1.13.0/go.mod h1:N09YCmOQr6RLxC6UNHzuVwAdodYbbnycGHSmwVJjcKA=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
-github.com/TheCacophonyProject/go-api v0.0.0-20190913044515-638d1f88861e h1:bHee94pos9Cqtx7QFyagc1iiYeF7pQo+jmA1t98AF9Y=
-github.com/TheCacophonyProject/go-api v0.0.0-20190913044515-638d1f88861e/go.mod h1:7OQjzdX6PbCJDxVRgTqNH9y12Ew+Q1sx9nwcRG7fj9s=
+github.com/TheCacophonyProject/go-api v0.0.0-20190923033957-174cea2ac81c h1:oe4aAqyfuxwiVbgn2UpslZ6oUlJSNE0cU0TAR8G5k/c=
+github.com/TheCacophonyProject/go-api v0.0.0-20190923033957-174cea2ac81c/go.mod h1:FfMpa4cFhNXQ9tuKG18HO6yLExezcJhzjUjBOFocrQw=
+github.com/TheCacophonyProject/go-config v0.0.0-20190922224052-7c2a21bc6b88/go.mod h1:gPUJLVu408NRz9/P3BrsxzOzLc+KJLrv+jVdDw3RI0Y=
 github.com/TheCacophonyProject/go-config v0.0.0-20190927054511-c93578ae648a h1:Akh0hzvoQuoB+4K7DFhLEYwsIPC0Mju5tY/la6PsVdY=
 github.com/TheCacophonyProject/go-config v0.0.0-20190927054511-c93578ae648a/go.mod h1:QCgT+KCrz1CmLVpeeOMl5L8/X1QvWwpsLzR7afTmEJc=
 github.com/TheCacophonyProject/modemd v0.0.0-20190708011609-1940f5b6677b h1:iJVZlC3nzjJ2EoWLBr7zKhL7t9hUleghmUIC+3ObB88=
