@@ -112,8 +112,10 @@ func TestPlayingComboStartBefore(t *testing.T) {
 }
 
 func TestPlayTodaysScheduleWithComboOverMiddayShouldPlayToEndOfComboThenStop(t *testing.T) {
-	combos := []Combo{createCombo("19:00", "19:25", 30, "roar"),
-		createCombo("11:12", "12:40", 60, "cry")}
+	combos := []Combo{
+		createCombo("19:00", "19:25", 30, "roar"),
+		createCombo("11:12", "12:40", 60, "cry"),
+	}
 
 	schedulePlayer, testRecorder := createPlayer("18:30")
 	schedulePlayer.playTodaysCombos(combos)
@@ -128,8 +130,10 @@ func TestPlayTodaysScheduleWithComboOverMiddayShouldPlayToEndOfComboThenStop(t *
 }
 
 func TestPlayTodaysScheduleShouldLoopBackToStartOfCombosIfRequired(t *testing.T) {
-	combos := []Combo{createCombo("03:00", "04:00", 45, "squeal"),
-		createCombo("21:12", "22:00", 60, "tweet")}
+	combos := []Combo{
+		createCombo("03:00", "04:00", 45, "squeal"),
+		createCombo("21:12", "22:00", 60, "tweet"),
+	}
 
 	schedulePlayer, testRecorder := createPlayer("18:30")
 	schedulePlayer.playTodaysCombos(combos)
@@ -144,10 +148,14 @@ func TestPlayTodaysScheduleShouldLoopBackToStartOfCombosIfRequired(t *testing.T)
 }
 
 func TestScheduleWithZeroControlNightsAlwaysPlays(t *testing.T) {
-	schedule := Schedule{ControlNights: 0, PlayNights: 0}
+	schedule := Schedule{
+		ControlNights: 0,
+		PlayNights:    0,
+		Combos:        []Combo{createCombo("21:12", "22:00", 60, "foo")},
+	}
 	schedulePlayer, _ := createPlayer("12:01")
 
-	assert.Equal(t, true, schedulePlayer.IsSoundPlayingDay(schedule))
+	assert.True(t, schedulePlayer.IsSoundPlayingDay(schedule))
 }
 
 func checkPlaysOn(day int, month time.Month, t *testing.T, schedule Schedule, schedulePlayer *SchedulePlayer, clock *TestClockAndAudioDevice) {
@@ -165,7 +173,12 @@ func checkSilentOn(day int, month time.Month, t *testing.T, schedule Schedule, s
 }
 
 func TestScheduleWithControlDaysOnlyPlaysOnPlayingDays(t *testing.T) {
-	schedule := Schedule{ControlNights: 5, PlayNights: 2, StartDay: 3}
+	schedule := Schedule{
+		ControlNights: 5,
+		PlayNights:    2,
+		StartDay:      3,
+		Combos:        []Combo{createCombo("12:01", "20:00", 60, "foo")},
+	}
 	schedulePlayer, clock := createPlayer("17:01")
 
 	checkSilentOn(1, time.April, t, schedule, schedulePlayer, clock)
@@ -179,7 +192,12 @@ func TestScheduleWithControlDaysOnlyPlaysOnPlayingDays(t *testing.T) {
 	checkPlaysOn(10, time.April, t, schedule, schedulePlayer, clock)
 	checkPlaysOn(17, time.April, t, schedule, schedulePlayer, clock)
 
-	schedule = Schedule{ControlNights: 3, PlayNights: 2, StartDay: 19}
+	schedule = Schedule{
+		ControlNights: 3,
+		PlayNights:    2,
+		StartDay:      19,
+		Combos:        []Combo{createCombo("12:01", "20:00", 60, "foo")},
+	}
 	schedulePlayer, clock = createPlayer("17:01")
 
 	checkSilentOn(18, time.April, t, schedule, schedulePlayer, clock)
@@ -190,7 +208,11 @@ func TestScheduleWithControlDaysOnlyPlaysOnPlayingDays(t *testing.T) {
 	checkPlaysOn(4, time.April, t, schedule, schedulePlayer, clock)
 
 	// check if StartDay not defined
-	schedule = Schedule{ControlNights: 3, PlayNights: 2}
+	schedule = Schedule{
+		ControlNights: 3,
+		PlayNights:    2,
+		Combos:        []Combo{createCombo("12:01", "20:00", 60, "foo")},
+	}
 	schedulePlayer, clock = createPlayer("17:01")
 
 	checkPlaysOn(1, time.April, t, schedule, schedulePlayer, clock)

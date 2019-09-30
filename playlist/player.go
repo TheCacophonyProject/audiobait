@@ -54,7 +54,6 @@ func (t *ActualClock) Now() time.Time {
 }
 
 func (t *ActualClock) Wait(duration time.Duration) {
-	log.Printf("Waiting for %v", duration)
 	time.Sleep(duration)
 }
 
@@ -166,23 +165,31 @@ func (sp SchedulePlayer) PlayTodaysSchedule(schedule Schedule) {
 
 // PlayTodaysCombos plays the given combos - doesn't not care whether it is a control day
 func (sp SchedulePlayer) playTodaysCombos(combos []Combo) {
+	done := make(map[int]bool)
+
 	tomorrowStart := sp.nextDayStart()
-	numberCombos := len(combos)
-	count := sp.findNextCombo(combos)
+	i := sp.findNextCombo(combos)
 
-	nextComboStart := sp.time.Now().Add(sp.createWindow(combos[count]).Until())
-
-	for nextComboStart.Before(tomorrowStart) {
-		log.Println("Playing combo...")
-		sp.playCombo(combos[count])
-		count = (count + 1) % numberCombos
-		nextComboStart = sp.time.Now().Add(sp.createWindow(combos[count]).Until())
+	for len(done) < len(combos) {
+		if !done[i] {
+			nextCombo := combos[i]
+			win := sp.createWindow(nextCombo)
+			nextComboStart := sp.time.Now().Add(win.Until())
+			if nextComboStart.Before(tomorrowStart) {
+				log.Println("Playing combo...")
+				sp.playCombo(nextCombo)
+			} else {
+				done[i] = true
+			}
+		}
+		i = (i + 1) % len(combos)
 	}
 	log.Println("Completed playing combos for today")
 }
 
-// nextDayStart works out when the next playing day starts.   As the playing day starts around midday, this could actually be
-// later today.
+// nextDayStart works out when the next playing day starts. As the
+// playing day starts around midday, this could actually be later
+// today.
 func (sp SchedulePlayer) nextDayStart() time.Time {
 	return nextDayStart(sp.time.Now())
 }
@@ -217,15 +224,19 @@ func (sp SchedulePlayer) playCombo(combo Combo) {
 			sp.playSounds(combo, soundChooser)
 		} else {
 			log.Print("Played last burst, sleeping until near end of window")
-			sp.time.Wait(win.UntilEnd()) // Stop 3s early so we don't miss the start of the next interval
+			sp.time.Wait(win.UntilEnd())
 			return
 		}
 	}
 }
 
+const hourMinuteFormat = "15:04"
+
 // createWindow creates a window with the times specified in the combo definition
 func (sp SchedulePlayer) createWindow(combo Combo) *window.Window {
-	win := window.New(combo.From.Time, combo.Until.Time)
+	from := combo.From.Time.Format(hourMinuteFormat)
+	to := combo.Until.Time.Format(hourMinuteFormat)
+	win, _ := window.New(from, to, 0, 0)
 	win.Now = sp.time.Now
 	return win
 }

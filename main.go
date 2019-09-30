@@ -90,13 +90,16 @@ func runMain() error {
 		log.Print("loading schedule from disk")
 		player, schedule, err := createPlayer(soundCard, conf.AudioDir)
 		if err != nil {
-			log.Printf("error creating player: %v", err)
+			log.Printf("error creating player: %v (will wait for schedule update)", err)
+			playTime = nil
+		} else if len(schedule.Combos) < 1 {
+			log.Print("No schedule defined - waiting for schedule update")
 			playTime = nil
 		} else {
-			playTime = time.After(player.TimeUntilNextCombo(*schedule))
+			playIn := player.TimeUntilNextCombo(*schedule)
+			log.Printf("waiting %s for schedule to start", playIn)
+			playTime = time.After(playIn)
 		}
-
-		log.Print("waiting")
 
 		select {
 		case <-dl.Updated():
