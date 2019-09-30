@@ -24,12 +24,14 @@ import (
 	yaml "gopkg.in/yaml.v1"
 )
 
+// AudioConfig contains audio configuration data.
 type AudioConfig struct {
 	AudioDir      string `yaml:"audio-directory"`
 	Card          int    `yaml:"card"`
 	VolumeControl string `yaml:"volume-control"`
 }
 
+// ParseConfigFile parses the audio config yaml file.
 func ParseConfigFile(filename string) (*AudioConfig, error) {
 	buf, err := ioutil.ReadFile(filename)
 	if err != nil {
