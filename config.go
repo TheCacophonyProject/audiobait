@@ -19,29 +19,19 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
-	"io/ioutil"
-
-	yaml "gopkg.in/yaml.v1"
+	goconfig "github.com/TheCacophonyProject/go-config"
 )
 
-// AudioConfig contains audio configuration data.
-type AudioConfig struct {
-	AudioDir      string `yaml:"audio-directory"`
-	Card          int    `yaml:"card"`
-	VolumeControl string `yaml:"volume-control"`
-}
-
-// ParseConfigFile parses the audio config yaml file.
-func ParseConfigFile(filename string) (*AudioConfig, error) {
-	buf, err := ioutil.ReadFile(filename)
+func ParseConfig(configDir string) (*goconfig.Audio, error) {
+	configRW, err := goconfig.New(configDir)
 	if err != nil {
 		return nil, err
 	}
 
-	var audioConfig AudioConfig
-	err = yaml.Unmarshal(buf, &audioConfig)
-	if err != nil {
+	audio := goconfig.DefaultAudio()
+	if err := configRW.Unmarshal(goconfig.AudioKey, &audio); err != nil {
 		return nil, err
 	}
-	return &audioConfig, nil
+
+	return &audio, nil
 }

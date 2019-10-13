@@ -29,6 +29,7 @@ import (
 	arg "github.com/alexflint/go-arg"
 
 	"github.com/TheCacophonyProject/audiobait/playlist"
+	goconfig "github.com/TheCacophonyProject/go-config"
 )
 
 var errTryLater = errors.New("error getting schedule, try again later")
@@ -37,7 +38,7 @@ var errTryLater = errors.New("error getting schedule, try again later")
 var version = "No version provided"
 
 type argSpec struct {
-	ConfigFile string `arg:"-c,--config" help:"path to configuration file"`
+	ConfigDir  string `arg:"-c,--config" help:"path to configuration directory"`
 	Timestamps bool   `arg:"-t,--timestamps" help:"include timestamps in log output"`
 }
 
@@ -47,7 +48,7 @@ func (argSpec) Version() string {
 
 func procArgs() argSpec {
 	var args argSpec
-	args.ConfigFile = "/etc/audiobait.yaml"
+	args.ConfigDir = goconfig.DefaultConfigDir
 	arg.MustParse(&args)
 	return args
 }
@@ -68,27 +69,27 @@ func runMain() error {
 	}
 
 	log.Printf("version %s", version)
-	conf, err := ParseConfigFile(args.ConfigFile)
+	conf, err := ParseConfig(args.ConfigDir)
 	if err != nil {
 		return err
 	}
 
 	// Make sure the path to where we keep the schedule and audio files is OK.
-	if err := createAudioPath(conf.AudioDir); err != nil {
+	if err := createAudioPath(conf.Dir); err != nil {
 		// This is a pretty fundamental error.  We can't do anything without this.
 		return err
 	}
-	log.Printf("Audio files directory is %s", conf.AudioDir)
+	log.Printf("Audio files directory is %s", conf.Dir)
 
 	// Start checking for new schedules
-	dl := NewDownloader(conf.AudioDir)
+	dl := NewDownloader(conf.Dir)
 
 	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
 
 	var playTime <-chan time.Time
 	for {
 		log.Print("loading schedule from disk")
-		player, schedule, err := createPlayer(soundCard, conf.AudioDir)
+		player, schedule, err := createPlayer(soundCard, conf.Dir)
 		if err != nil {
 			log.Printf("error creating player: %v (will wait for schedule update)", err)
 			playTime = nil
