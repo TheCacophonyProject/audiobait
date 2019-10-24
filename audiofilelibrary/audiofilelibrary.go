@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-package main
+package audiofilelibrary
 
 import (
 	"errors"
@@ -54,7 +54,7 @@ func extractIDFromFileName(fileName string) (int, error) {
 }
 
 // OpenLibrary reads the audio directory.  And constructs a map of file IDs to file names.
-func OpenLibrary(soundsDirectory string) (*AudioFileLibrary, error) {
+func OpenLibrary(soundsDirectory string, scheduleFilename string) (*AudioFileLibrary, error) {
 
 	library := &AudioFileLibrary{
 		soundsDirectory: soundsDirectory,

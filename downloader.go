@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/TheCacophonyProject/audiobait/audiofilelibrary"
 	"github.com/TheCacophonyProject/audiobait/playlist"
 	"github.com/TheCacophonyProject/go-api"
 	"github.com/TheCacophonyProject/modemd/connrequester"
@@ -268,7 +269,7 @@ func (dl *Downloader) getFileDetails(apiObj *api.CacophonyAPI, fileID int) (*api
 
 // Try and download a single audio file from the API server.
 func (dl *Downloader) downloadAudioFile(api *api.CacophonyAPI, fileID int, fileResp *api.FileResponse) error {
-	filename := MakeFileName(fileResp.File.Details.OriginalName, fileResp.File.Details.Name, fileID)
+	filename := audiofilelibrary.MakeFileName(fileResp.File.Details.OriginalName, fileResp.File.Details.Name, fileID)
 
 	return retry(
 		fmt.Sprintf("download and validate file %d", fileID),
