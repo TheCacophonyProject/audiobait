@@ -28,6 +28,7 @@ import (
 
 	arg "github.com/alexflint/go-arg"
 
+	"github.com/TheCacophonyProject/audiobait/audiofilelibrary"
 	"github.com/TheCacophonyProject/audiobait/playlist"
 	goconfig "github.com/TheCacophonyProject/go-config"
 )
@@ -140,7 +141,7 @@ func createPlayer(soundCard SoundCardPlayer, audioDirectory string) (*playlist.S
 func getScheduleFiles(audioDirectory string, schedule *playlist.Schedule) (map[int]string, error) {
 	referencedFiles := schedule.GetReferencedSounds()
 
-	audioLibrary, err := OpenLibrary(audioDirectory)
+	audioLibrary, err := audiofilelibrary.OpenLibrary(audioDirectory, scheduleFilename)
 	if err != nil {
 		return nil, fmt.Errorf("error creating audio library: %v", err)
 	}
