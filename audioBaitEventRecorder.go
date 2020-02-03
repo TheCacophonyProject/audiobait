@@ -19,11 +19,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"time"
 
-	"github.com/godbus/dbus"
+	"github.com/TheCacophonyProject/event-reporter/eventstore"
 )
 
 // AudioBaitEventRecorder uses the event api to record that audioBait was played at a particular time.
@@ -32,31 +31,18 @@ type AudioBaitEventRecorder struct {
 
 // OnAudioBaitPlayed logs an occurrence of an audiobait being played.
 func (er AudioBaitEventRecorder) OnAudioBaitPlayed(ts time.Time, fileID int, volume int) {
-	eventDetails := map[string]interface{}{
-		"description": map[string]interface{}{
-			"type": "audioBait",
-			"details": map[string]interface{}{
+	event := eventstore.Event{
+		Description: eventstore.EventDescription{
+			Type: "audioBait",
+			Details: map[string]interface{}{
 				"fileId": fileID,
 				"volume": volume,
 			},
 		},
-	}
-	detailsJSON, err := json.Marshal(&eventDetails)
-	if err != nil {
-		log.Printf("Could not log audiobait played: %s", err)
-		return
+		Timestamp: ts,
 	}
 
-	conn, err := dbus.SystemBus()
-	if err != nil {
-		log.Printf("Could not log audiobait played: %s", err)
-		return
-	}
-
-	obj := conn.Object("org.cacophony.Events", "/org/cacophony/Events")
-	call := obj.Call("org.cacophony.Events.Queue", 0, detailsJSON, ts.UnixNano())
-	if call.Err != nil {
-		log.Printf("Could not log audiobait played: %s", call.Err)
-		return
+	if err := eventstore.AddEvent(event); err != nil {
+		log.Println(err)
 	}
 }
