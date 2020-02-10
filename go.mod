@@ -3,6 +3,7 @@ module github.com/TheCacophonyProject/audiobait
 go 1.12
 
 require (
+	github.com/TheCacophonyProject/event-reporter v1.3.2-0.20200210010421-ca3fcb76a231
 	github.com/TheCacophonyProject/go-api v0.0.0-20190923033957-174cea2ac81c
 	github.com/TheCacophonyProject/go-config v0.0.0-20190927054511-c93578ae648a
 	github.com/TheCacophonyProject/modemd v0.0.0-20190708011609-1940f5b6677b
