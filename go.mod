@@ -14,5 +14,3 @@ require (
 	golang.org/x/sys v0.0.0-20190912141932-bc967efca4b8 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 )
-
-//replace github.com/TheCacophonyProject/event-reporter => /home/cam/gohack/github.com/TheCacophonyProject/event-reporter
