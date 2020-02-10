@@ -22,7 +22,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/TheCacophonyProject/event-reporter/eventstore"
+	"github.com/TheCacophonyProject/event-reporter/eventclient"
 )
 
 // AudioBaitEventRecorder uses the event api to record that audioBait was played at a particular time.
@@ -31,18 +31,16 @@ type AudioBaitEventRecorder struct {
 
 // OnAudioBaitPlayed logs an occurrence of an audiobait being played.
 func (er AudioBaitEventRecorder) OnAudioBaitPlayed(ts time.Time, fileID int, volume int) {
-	event := eventstore.Event{
-		Description: eventstore.EventDescription{
-			Type: "audioBait",
-			Details: map[string]interface{}{
-				"fileId": fileID,
-				"volume": volume,
-			},
-		},
+	event := eventclient.Event{
 		Timestamp: ts,
+		Type:      "audioBait",
+		Details: map[string]interface{}{
+			"fileId": fileID,
+			"volume": volume,
+		},
 	}
 
-	if err := eventstore.AddEvent(event); err != nil {
+	if err := eventclient.AddEvent(event); err != nil {
 		log.Println(err)
 	}
 }
