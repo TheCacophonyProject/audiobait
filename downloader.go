@@ -128,7 +128,7 @@ func (dl *Downloader) update() (bool, error) {
 
 	changed, err := dl.scheduleChanged()
 	if err != nil {
-		return false, errors.New("check for schedule change")
+		return false, fmt.Errorf("check for schedule change: %v", err)
 	}
 
 	if err := dl.activateNewSchedule(); err != nil {
@@ -215,6 +215,9 @@ func (dl *Downloader) saveScheduleToDisk(jsonData []byte) error {
 }
 
 func (dl *Downloader) scheduleChanged() (bool, error) {
+	if _, err := os.Stat(filepath.Join(dl.audioDir, scheduleFilename)); os.IsNotExist(err) {
+		return true, nil // Return true if there was no previous scheduel file
+	}
 	oldHash, err := md5sum(filepath.Join(dl.audioDir, scheduleFilename))
 	if err != nil {
 		return false, err
