@@ -16,4 +16,4 @@ deploy:
   script: curl -sL https://git.io/goreleaser | bash
   on:
     tags: true
-    go: "1.12.x"
+    go: "1.15.x"
