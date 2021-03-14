@@ -35,3 +35,5 @@ nfpms:
   bindir: /usr/bin
   files:
     "_release/audiobait.service": "/etc/systemd/system/audiobait.service"
+  scripts:
+      postinstall: "_release/postinstall.sh"

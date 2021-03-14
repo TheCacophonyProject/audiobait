@@ -283,7 +283,7 @@ func (dl *Downloader) downloadAudioFile(api *api.CacophonyAPI, fileID int, fileR
 			}
 			if !dl.validateSoundFile(filepath.Join(dl.audioDir, filename), fileResp.FileSize) {
 				log.Printf("%s is not valid. Removing from disk.", filename)
-				if err := os.Remove(filename); err != nil {
+				if err := os.Remove(filepath.Join(dl.audioDir, filename)); err != nil {
 					return fmt.Errorf("could not remove file: %v", err)
 				}
 				return errors.New("download was not valid")
