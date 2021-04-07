@@ -14,7 +14,7 @@ builds:
   - arm
   goarm:
   - "7"
-  main: .
+  main: ./cmd/audiobait
   ldflags: -s -w -X main.version={{.Version}}
   binary: audiobait
 
