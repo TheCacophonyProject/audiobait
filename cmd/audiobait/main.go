@@ -93,7 +93,7 @@ func runMain() error {
 	var playTime <-chan time.Time
 	for {
 		log.Print("loading schedule from disk")
-		player, schedule, err := createPlayer(soundCard, conf.Dir) //TODO add trigger output
+		player, schedule, err := createPlayer(conf.Dir) //TODO add trigger output
 		service.setPlayer(player)
 		if err != nil {
 			log.Printf("error creating player: %v (will wait for schedule update)", err)
@@ -125,7 +125,7 @@ func createAudioPath(audioPath string) error {
 	return nil
 }
 
-func createPlayer(soundCard SoundCardPlayer, audioDirectory string) (*playlist.SchedulePlayer, *playlist.Schedule, error) {
+func createPlayer(audioDirectory string) (*playlist.SchedulePlayer, *playlist.Schedule, error) {
 	schedule, err := loadScheduleFromDisk(audioDirectory)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read schedule from disk: %v", err)
@@ -136,7 +136,7 @@ func createPlayer(soundCard SoundCardPlayer, audioDirectory string) (*playlist.S
 		return nil, nil, fmt.Errorf("problem collating files for schedule: %v", err)
 	}
 
-	player := playlist.NewPlayer(soundCard, files, audioDirectory)
+	player := playlist.NewPlayer(files, audioDirectory)
 	player.SetRecorder(AudioBaitEventRecorder{})
 
 	return player, schedule, nil

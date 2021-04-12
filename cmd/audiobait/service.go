@@ -84,6 +84,7 @@ func (s service) Play(audioFileId, volume, priority int, makeEvent bool) (bool, 
 	if err := s.soundCard.Play(path, volume); err != nil {
 		return false, dbusErr("Play", err)
 	}
+	//TODO make event
 	return true, nil
 }
 
