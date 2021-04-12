@@ -35,5 +35,6 @@ nfpms:
   bindir: /usr/bin
   files:
     "_release/audiobait.service": "/etc/systemd/system/audiobait.service"
+    "_release/org.cacophony.Audiobait.conf": "/etc/dbus-1/system.d/org.cacophony.Audiobait.conf"
   scripts:
       postinstall: "_release/postinstall.sh"

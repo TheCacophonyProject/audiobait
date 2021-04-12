@@ -39,6 +39,7 @@ type Combo struct {
 	Waits   []int
 	Volumes []int
 	Sounds  []string
+	Trigger string
 }
 
 func ParseJSONConfigFile(jsonAsString string, schedule *Schedule) error {

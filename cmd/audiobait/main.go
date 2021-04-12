@@ -75,6 +75,14 @@ func runMain() error {
 		return err
 	}
 
+	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
+
+	service, err := startService(conf.Dir, soundCard)
+	if err != nil {
+		return err
+	}
+	log.Println("started audiobait dbus servie")
+
 	// Make sure the path to where we keep the schedule and audio files is OK.
 	if err := createAudioPath(conf.Dir); err != nil {
 		// This is a pretty fundamental error.  We can't do anything without this.
@@ -85,12 +93,11 @@ func runMain() error {
 	// Start checking for new schedules
 	dl := NewDownloader(conf.Dir)
 
-	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
-
 	var playTime <-chan time.Time
 	for {
 		log.Print("loading schedule from disk")
-		player, schedule, err := createPlayer(soundCard, conf.Dir)
+		player, schedule, err := createPlayer(soundCard, conf.Dir) //TODO add trigger output
+		service.setPlayer(player)
 		if err != nil {
 			log.Printf("error creating player: %v (will wait for schedule update)", err)
 			playTime = nil
