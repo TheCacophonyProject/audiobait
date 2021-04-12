@@ -19,13 +19,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os/exec"
-	"path/filepath"
-	"time"
-
-	"github.com/godbus/dbus"
 )
 
 // SoundCardPlayer struct contains sound card player info.
@@ -70,28 +65,4 @@ func (p *SoundCardPlayer) play(filename string) error {
 	}
 
 	return nil
-}
-
-func (p *SoundCardPlayer) queueEvent(ts time.Time, filename string) error {
-	eventDetails := map[string]interface{}{
-		"description": map[string]interface{}{
-			"type": "audioBait",
-			"details": map[string]interface{}{
-				"filename": filepath.Base(filename),
-				"volume":   100,
-			},
-		},
-	}
-	detailsJSON, err := json.Marshal(&eventDetails)
-	if err != nil {
-		return err
-	}
-
-	conn, err := dbus.SystemBus()
-	if err != nil {
-		return err
-	}
-	obj := conn.Object("org.cacophony.Events", "/org/cacophony/Events")
-	call := obj.Call("org.cacophony.Events.Queue", 0, detailsJSON, ts.UnixNano())
-	return call.Err
 }

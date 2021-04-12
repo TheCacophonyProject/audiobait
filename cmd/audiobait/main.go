@@ -19,7 +19,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -32,8 +31,6 @@ import (
 	"github.com/TheCacophonyProject/audiobait/playlist"
 	goconfig "github.com/TheCacophonyProject/go-config"
 )
-
-var errTryLater = errors.New("error getting schedule, try again later")
 
 // version is populated at link time via goreleaser
 var version = "No version provided"
@@ -123,7 +120,7 @@ func runMain() error {
 func createAudioPath(audioPath string) error {
 	err := os.MkdirAll(audioPath, 0755)
 	if err != nil {
-		return fmt.Errorf("Could not create audio directory: %v", err)
+		return fmt.Errorf("could not create audio directory: %v", err)
 	}
 	return nil
 }
@@ -131,12 +128,12 @@ func createAudioPath(audioPath string) error {
 func createPlayer(soundCard SoundCardPlayer, audioDirectory string) (*playlist.SchedulePlayer, *playlist.Schedule, error) {
 	schedule, err := loadScheduleFromDisk(audioDirectory)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to read schedule from disk: %v", err)
+		return nil, nil, fmt.Errorf("failed to read schedule from disk: %v", err)
 	}
 
 	files, err := getScheduleFiles(audioDirectory, schedule)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Problem collating files for schedule: %v", err)
+		return nil, nil, fmt.Errorf("problem collating files for schedule: %v", err)
 	}
 
 	player := playlist.NewPlayer(soundCard, files, audioDirectory)
