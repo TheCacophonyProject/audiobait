@@ -23,21 +23,13 @@ import (
 	"time"
 
 	"github.com/TheCacophonyProject/audiobait/audiobaitclient"
+	"github.com/TheCacophonyProject/event-reporter/eventclient"
 	"github.com/TheCacophonyProject/window"
 )
 
-type AudioPlayer interface {
-	Play(audioFileId, volume int) (bool, error)
-}
-
-// player will be mocked for testing
-var player AudioPlayer = Player{}
+var audiobaitclientPlay = audiobaitclient.PlayFromId
 
 type Player struct{}
-
-func (p Player) Play(audioFileId, volume int) (bool, error) {
-	return audiobaitclient.Play(audioFileId, volume, 1, true)
-}
 
 // Clock models a clock.   That has been abstracted for unit testing.
 type Clock interface {
@@ -257,7 +249,10 @@ func (sp SchedulePlayer) playSounds(combo Combo, chooser *SoundChooser) {
 			volume := combo.Volumes[count]
 			now := sp.time.Now()
 			log.Printf("Playing sound %s at volume level %d", soundFilename, volume)
-			if played, err := player.Play(file_id, volume); err != nil {
+			event := &eventclient.Event{
+				Type: "audioBait",
+			}
+			if played, err := audiobaitclientPlay(file_id, volume, 1, event); err != nil {
 				log.Printf("Play failed: %v", err)
 			} else if !played {
 				log.Println("audiobait was not played because it's priority wasn't high enough")

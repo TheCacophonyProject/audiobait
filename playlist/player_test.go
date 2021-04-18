@@ -25,8 +25,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TheCacophonyProject/event-reporter/eventclient"
 	"github.com/stretchr/testify/assert"
 )
+
+var fakePlayerSuccess = true
+var fakePlayerError error = nil
 
 var soundFiles = map[int]string{
 	1: "squeal",
@@ -63,31 +67,23 @@ func registerPlaySound(playTime, audioFileName string) string {
 	return fmt.Sprintf("%s: Playing %s", playTime, audioFileName)
 }
 
-func createPlayer(startTime string) (*SchedulePlayer, *TestClockAndAudioDevice, *fakePlayer) {
-	fp := &fakePlayer{}
-	fp.plays = true
-	player = fp
+func createPlayer(startTime string) (*SchedulePlayer, *TestClockAndAudioDevice) {
+	audiobaitclientPlay =
+		func(int, int, int, *eventclient.Event) (bool, error) {
+			return fakePlayerSuccess, fakePlayerError
+		}
 	testPlayerAndTimer := new(TestClockAndAudioDevice)
 	testPlayerAndTimer.PlayTimes = make([]string, 0, 10)
 	testPlayerAndTimer.NowTime = NewTimeOfDay(startTime).Time
 	scheduleplayer := newSchedulePlayerWithClock(testPlayerAndTimer, soundFiles, "")
 	scheduleplayer.SetRecorder(testPlayerAndTimer)
-	return scheduleplayer, testPlayerAndTimer, fp
-}
-
-type fakePlayer struct {
-	plays bool
-	error error
-}
-
-func (fp fakePlayer) Play(fileId, volume int) (bool, error) {
-	return fp.plays, fp.error
+	return scheduleplayer, testPlayerAndTimer
 }
 
 func TestPlayingComboStartDuring(t *testing.T) {
 	combo := createCombo("12:01", "13:03", 30, "beep")
 
-	schedulePlayer, testRecorder, _ := createPlayer("12:13")
+	schedulePlayer, testRecorder := createPlayer("12:13")
 	schedulePlayer.playCombo(combo)
 
 	expectedPlayTimes := []string{
@@ -101,7 +97,7 @@ func TestPlayingComboStartDuring(t *testing.T) {
 func TestPlayingComboStartBefore(t *testing.T) {
 	combo := createCombo("12:01", "13:03", 30, "howl")
 
-	schedulePlayer, testRecorder, _ := createPlayer("11:21")
+	schedulePlayer, testRecorder := createPlayer("11:21")
 	schedulePlayer.playCombo(combo)
 
 	expectedPlayTimes := []string{
@@ -119,7 +115,7 @@ func TestPlayTodaysScheduleWithComboOverMiddayShouldPlayToEndOfComboThenStop(t *
 		createCombo("11:12", "12:40", 60, "cry"),
 	}
 
-	schedulePlayer, testRecorder, _ := createPlayer("18:30")
+	schedulePlayer, testRecorder := createPlayer("18:30")
 	schedulePlayer.playTodaysCombos(combos)
 
 	expectedPlayTimes := []string{
@@ -137,7 +133,7 @@ func TestPlayTodaysScheduleShouldLoopBackToStartOfCombosIfRequired(t *testing.T)
 		createCombo("21:12", "22:00", 60, "tweet"),
 	}
 
-	schedulePlayer, testRecorder, _ := createPlayer("18:30")
+	schedulePlayer, testRecorder := createPlayer("18:30")
 	schedulePlayer.playTodaysCombos(combos)
 
 	expectedPlayTimes := []string{
@@ -155,7 +151,7 @@ func TestScheduleWithZeroControlNightsAlwaysPlays(t *testing.T) {
 		PlayNights:    0,
 		Combos:        []Combo{createCombo("21:12", "22:00", 60, "foo")},
 	}
-	schedulePlayer, _, _ := createPlayer("12:01")
+	schedulePlayer, _ := createPlayer("12:01")
 
 	assert.True(t, schedulePlayer.IsSoundPlayingDay(schedule))
 }
@@ -181,7 +177,7 @@ func TestScheduleWithControlDaysOnlyPlaysOnPlayingDays(t *testing.T) {
 		StartDay:      3,
 		Combos:        []Combo{createCombo("12:01", "20:00", 60, "foo")},
 	}
-	schedulePlayer, clock, _ := createPlayer("17:01")
+	schedulePlayer, clock := createPlayer("17:01")
 
 	checkSilentOn(1, time.April, t, schedule, schedulePlayer, clock)
 	checkSilentOn(2, time.April, t, schedule, schedulePlayer, clock)
@@ -200,7 +196,7 @@ func TestScheduleWithControlDaysOnlyPlaysOnPlayingDays(t *testing.T) {
 		StartDay:      19,
 		Combos:        []Combo{createCombo("12:01", "20:00", 60, "foo")},
 	}
-	schedulePlayer, clock, _ = createPlayer("17:01")
+	schedulePlayer, clock = createPlayer("17:01")
 
 	checkSilentOn(18, time.April, t, schedule, schedulePlayer, clock)
 	checkPlaysOn(19, time.April, t, schedule, schedulePlayer, clock)
@@ -215,7 +211,7 @@ func TestScheduleWithControlDaysOnlyPlaysOnPlayingDays(t *testing.T) {
 		PlayNights:    2,
 		Combos:        []Combo{createCombo("12:01", "20:00", 60, "foo")},
 	}
-	schedulePlayer, clock, _ = createPlayer("17:01")
+	schedulePlayer, clock = createPlayer("17:01")
 
 	checkPlaysOn(1, time.April, t, schedule, schedulePlayer, clock)
 	checkPlaysOn(2, time.April, t, schedule, schedulePlayer, clock)
@@ -229,7 +225,7 @@ func TestPlayComboWithMultipleSoundsIncludingSame(t *testing.T) {
 	addAnotherSound(&combos[0], 3, "same")
 	addAnotherSound(&combos[0], 2, "meow")
 
-	schedulePlayer, testRecorder, _ := createPlayer("17:59")
+	schedulePlayer, testRecorder := createPlayer("17:59")
 	schedulePlayer.playTodaysCombos(combos)
 
 	expectedPlayTimes := []string{
@@ -247,15 +243,15 @@ func TestFindNextCombo(t *testing.T) {
 	combos := []Combo{createCombo("12:03", "15:08", 30, "a"),
 		createCombo("17:12", "02:15", 45, "b"),
 		createCombo("03:12", "06:12", 60, "c")}
-	schedulePlayer, _, _ := createPlayer("12:13")
+	schedulePlayer, _ := createPlayer("12:13")
 	fmt.Print(combos[schedulePlayer.findNextCombo(combos)])
 }
 
 func TestRecorderIsNotCalledWhenSoundIsNotPlayed(t *testing.T) {
 	combo := createCombo("12:01", "13:03", 30, "howl")
 
-	schedulePlayer, testRecorder, testPlayer := createPlayer("12:10")
-	testPlayer.plays = false
+	schedulePlayer, testRecorder := createPlayer("12:10")
+	fakePlayerSuccess = false
 	schedulePlayer.playCombo(combo)
 
 	expectedPlayedTimes := []string{}
@@ -266,8 +262,8 @@ func TestRecorderIsNotCalledWhenSoundIsNotPlayed(t *testing.T) {
 func TestRecorderIsNotCalledWhenErrorWithPlayingSound(t *testing.T) {
 	combo := createCombo("12:01", "13:03", 30, "howl")
 
-	schedulePlayer, testRecorder, testPlayer := createPlayer("12:10")
-	testPlayer.error = errors.New("some error with playing audio")
+	schedulePlayer, testRecorder := createPlayer("12:10")
+	fakePlayerError = errors.New("some error with playing audio")
 	schedulePlayer.playCombo(combo)
 
 	expectedPlayedTimes := []string{}

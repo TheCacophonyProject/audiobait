@@ -19,11 +19,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"runtime"
+	"strings"
 	"sync"
 
-	"github.com/TheCacophonyProject/audiobait/audiofilelibrary"
-	"github.com/TheCacophonyProject/audiobait/playlist"
+	"github.com/TheCacophonyProject/event-reporter/eventclient"
 	"github.com/godbus/dbus"
 	"github.com/godbus/dbus/introspect"
 )
@@ -36,66 +38,71 @@ const (
 var mu = sync.RWMutex{}
 
 type service struct {
-	soundCard SoundCardPlayer
-	player    *playlist.SchedulePlayer
-	soundDir  string
+	player player
 }
 
-func startService(soundDir string, soundCard SoundCardPlayer) (*service, error) {
+func startService(player player) error {
 	conn, err := dbus.SystemBus()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	reply, err := conn.RequestName(dbusName, dbus.NameFlagDoNotQueue)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if reply != dbus.RequestNameReplyPrimaryOwner {
-		return nil, errors.New("name already taken")
+		return errors.New("name already taken")
 	}
-
 	s := &service{
-		soundDir:  soundDir,
-		soundCard: soundCard,
+		player: player,
 	}
 	if err := conn.Export(s, dbusPath, dbusName); err != nil {
-		return nil, err
+		return err
 	}
 	if err := conn.Export(genIntrospectable(s), dbusPath, "org.freedesktop.DBus.Introspectable"); err != nil {
-		return nil, err
+		return err
 	}
-	return s, nil
+	return nil
 }
 
-func (s *service) setPlayer(player *playlist.SchedulePlayer) {
+func (s service) PlayFromId(fileId, volume, priority int, eventRaw string) (bool, *dbus.Error) {
 	mu.Lock()
 	defer mu.Unlock()
-	s.player = player
-}
-
-func (s service) Play(audioFileId, volume, priority int, makeEvent bool) (bool, *dbus.Error) {
-	mu.Lock()
-	defer mu.Unlock()
-	library, err := audiofilelibrary.OpenLibrary(s.soundDir, scheduleFilename)
+	var event *eventclient.Event
+	if len(eventRaw) != 0 {
+		if err := json.Unmarshal([]byte(eventRaw), &event); err != nil {
+			return false, dbusErr(err)
+		}
+	}
+	played, err := s.player.PlayFromId(fileId, volume, priority, event)
 	if err != nil {
-		return false, dbusErr("Play", err)
+		return played, dbusErr(err)
 	}
-	path := s.soundDir + "/" + library.FilesByID[audioFileId]
-	if err := s.soundCard.Play(path, volume); err != nil {
-		return false, dbusErr("Play", err)
-	}
-	//TODO make event
-	return true, nil
+	return played, nil
 }
 
-func dbusErr(name string, err error) *dbus.Error {
+func dbusErr(err error) *dbus.Error {
 	if err == nil {
 		return nil
 	}
 	return &dbus.Error{
-		Name: dbusName + "." + name,
+		Name: dbusName + "." + getCallerName(),
 		Body: []interface{}{err.Error()},
 	}
+}
+
+func getCallerName() string {
+	fpcs := make([]uintptr, 1)
+	n := runtime.Callers(3, fpcs)
+	if n == 0 {
+		return ""
+	}
+	caller := runtime.FuncForPC(fpcs[0] - 1)
+	if caller == nil {
+		return ""
+	}
+	funcNames := strings.Split(caller.Name(), ".")
+	return funcNames[len(funcNames)-1]
 }
 
 func genIntrospectable(v interface{}) introspect.Introspectable {
@@ -124,5 +131,4 @@ func (s service) Status() *dbus.Error {
 func (s service) Mute(priority int) *dbus.Error {
 	return nil
 }
-
 */

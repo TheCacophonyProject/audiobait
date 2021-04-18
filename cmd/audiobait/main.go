@@ -72,10 +72,10 @@ func runMain() error {
 		return err
 	}
 
-	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
-
-	service, err := startService(conf.Dir, soundCard)
-	if err != nil {
+	if err := startService(player{
+		soundCard: NewSoundCardPlayer(conf.Card, conf.VolumeControl),
+		soundDir:  conf.Dir,
+	}); err != nil {
 		return err
 	}
 	log.Println("started audiobait dbus servie")
@@ -93,8 +93,7 @@ func runMain() error {
 	var playTime <-chan time.Time
 	for {
 		log.Print("loading schedule from disk")
-		player, schedule, err := createPlayer(conf.Dir) //TODO add trigger output
-		service.setPlayer(player)
+		playlist, schedule, err := createPlayer(conf.Dir) //TODO add trigger output
 		if err != nil {
 			log.Printf("error creating player: %v (will wait for schedule update)", err)
 			playTime = nil
@@ -102,7 +101,7 @@ func runMain() error {
 			log.Print("No schedule defined - waiting for schedule update")
 			playTime = nil
 		} else {
-			playIn := player.TimeUntilNextCombo(*schedule)
+			playIn := playlist.TimeUntilNextCombo(*schedule)
 			log.Printf("waiting %s for schedule to start", playIn)
 			playTime = time.After(playIn)
 		}
@@ -112,7 +111,7 @@ func runMain() error {
 			log.Print("new schedule - reloading")
 		case <-playTime:
 			log.Printf("Playing todays audiobait schedule...")
-			player.PlayTodaysSchedule(*schedule)
+			playlist.PlayTodaysSchedule(*schedule)
 		}
 	}
 }

@@ -19,28 +19,16 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package audiobaitclient
 
 import (
+	"encoding/json"
 	"errors"
+	"log"
 
+	"github.com/TheCacophonyProject/event-reporter/eventclient"
 	"github.com/godbus/dbus"
 )
 
-func Play(audioFileId, volume, priority int, makeEvent bool) (played bool, err error) {
-	data, err := dbusCall("Play", audioFileId, volume, priority, makeEvent)
-	if err != nil {
-		return false, err
-	}
-	if len(data) != 1 {
-		return false, errors.New("error playing sound")
-	}
-	played, ok := data[0].(bool)
-	if !ok {
-		return false, errors.New("error playing sound")
-	}
-	return played, nil
-
-}
-
-func dbusCall(method string, params ...interface{}) ([]interface{}, error) {
+// Can be mocked for testing
+var dbusCall = func(method string, params ...interface{}) ([]interface{}, error) {
 	conn, err := dbus.SystemBus()
 	if err != nil {
 		return nil, err
@@ -48,4 +36,29 @@ func dbusCall(method string, params ...interface{}) ([]interface{}, error) {
 	obj := conn.Object("org.cacophony.Audiobait", "/org/cacophony/Audiobait")
 	call := obj.Call(method, 0, params...)
 	return call.Body, call.Err
+}
+
+var ErrorParsingOutput = errors.New("error with parsing dbus output")
+
+func PlayFromId(audioFileId, volume, priority int, event *eventclient.Event) (played bool, err error) {
+	eventRaw := []byte{}
+	if event != nil {
+		eventRaw, err = json.Marshal(event)
+		if err != nil {
+			return false, err
+		}
+	}
+	log.Println(eventRaw)
+	data, err := dbusCall("PlayFromId", audioFileId, volume, priority, string(eventRaw))
+	if err != nil {
+		return false, err
+	}
+	if len(data) != 1 {
+		return false, ErrorParsingOutput
+	}
+	played, ok := data[0].(bool)
+	if !ok {
+		return false, ErrorParsingOutput
+	}
+	return played, nil
 }
