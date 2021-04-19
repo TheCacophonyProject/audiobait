@@ -21,7 +21,6 @@ package audiobaitclient
 import (
 	"encoding/json"
 	"errors"
-	"log"
 
 	"github.com/TheCacophonyProject/event-reporter/eventclient"
 	"github.com/godbus/dbus"
@@ -48,7 +47,6 @@ func PlayFromId(audioFileId, volume, priority int, event *eventclient.Event) (pl
 			return false, err
 		}
 	}
-	log.Println(eventRaw)
 	data, err := dbusCall("PlayFromId", audioFileId, volume, priority, string(eventRaw))
 	if err != nil {
 		return false, err
