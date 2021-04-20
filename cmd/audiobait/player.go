@@ -39,7 +39,7 @@ var openLibrary = audiofilelibrary.OpenLibrary
 var now = time.Now
 
 func (p *player) PlayFromId(fileId, volume, priority int, event *eventclient.Event) (bool, error) {
-	library, err := openLibrary(p.soundDir, scheduleFilename)
+	library, err := openLibrary(p.soundDir)
 	if err != nil {
 		return false, err
 	}

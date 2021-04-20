@@ -19,12 +19,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
-	"crypto/md5"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
@@ -38,9 +34,6 @@ import (
 )
 
 const (
-	scheduleFilename     = "schedule.json"
-	tempScheduleFilename = "schedule.json.part"
-
 	// Parameters for requesting internet connectivity
 	connTimeout       = time.Minute * 2
 	connRetryInterval = time.Minute * 10
@@ -100,12 +93,12 @@ func (dl *Downloader) loop() {
 }
 
 func (dl *Downloader) update() (bool, error) {
-	log.Println("Requesting internet connection")
+	log.Println("requesting internet connection")
 	connReq, err := connectToInternet()
 	if err != nil {
 		return false, err
 	}
-	log.Println("Internet connection made")
+	log.Println("internet connection made")
 	defer connReq.Stop()
 
 	api, err := initiateAPI()
@@ -113,29 +106,21 @@ func (dl *Downloader) update() (bool, error) {
 		return false, err
 	}
 
-	log.Println("Downloading schedule")
-	schedule, err := dl.downloadSchedule(api)
+	schedule, err := playlist.GetScheduleFromAPI(api)
 	if err != nil {
 		return false, err
 	}
-	log.Println("Schedule downloaded")
-
-	log.Println("Starting downloading audio files.")
+	log.Println("schedule downloaded")
 	if err := dl.getFilesForSchedule(api, schedule); err != nil {
 		return false, err
 	}
-	log.Println("All audio files downloaded")
-
-	changed, err := dl.scheduleChanged()
-	if err != nil {
-		return false, fmt.Errorf("check for schedule change: %v", err)
+	log.Println("starting downloading audio files.")
+	if err := dl.getFilesForSchedule(api, schedule); err != nil {
+		return false, err
 	}
+	log.Println("all audio files downloaded")
 
-	if err := dl.activateNewSchedule(); err != nil {
-		return false, fmt.Errorf("problem activating new schedule: %v", err)
-	}
-
-	return changed, nil
+	return playlist.SaveScheduleIfNew(dl.audioDir, schedule)
 }
 
 func connectToInternet() (*connrequester.ConnectionRequester, error) {
@@ -159,82 +144,6 @@ func initiateAPI() (*api.CacophonyAPI, error) {
 		return nil, err
 	}
 	return cacAPI, nil
-}
-
-func (dl *Downloader) downloadSchedule(api *api.CacophonyAPI) (*playlist.Schedule, error) {
-	var sr scheduleResponse
-
-	err := retry(
-		"download schedule",
-		func() error {
-			jsonData, err := api.GetSchedule()
-			if err != nil {
-				return err
-			}
-			log.Println("Audio schedule downloaded from server")
-
-			if err := json.Unmarshal(jsonData, &sr); err != nil {
-				return err
-			}
-			log.Println("Audio schedule parsed successfully")
-
-			if err := dl.saveScheduleToDisk(jsonData); err != nil {
-				return fmt.Errorf("failed to save schedule to disk: %v", err)
-			}
-
-			return nil
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &sr.Schedule, nil
-}
-
-type scheduleResponse struct {
-	Schedule playlist.Schedule
-}
-
-func loadScheduleFromDisk(audioDirectory string) (*playlist.Schedule, error) {
-	filename := filepath.Join(audioDirectory, scheduleFilename)
-	jsonData, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	var sr scheduleResponse
-	if err = json.Unmarshal(jsonData, &sr); err != nil {
-		return nil, err
-	}
-	return &sr.Schedule, nil
-}
-
-func (dl *Downloader) saveScheduleToDisk(jsonData []byte) error {
-	filename := filepath.Join(dl.audioDir, tempScheduleFilename)
-	return ioutil.WriteFile(filename, jsonData, 0644)
-}
-
-func (dl *Downloader) scheduleChanged() (bool, error) {
-	if _, err := os.Stat(filepath.Join(dl.audioDir, scheduleFilename)); os.IsNotExist(err) {
-		return true, nil // Return true if there was no previous scheduel file
-	}
-	oldHash, err := md5sum(filepath.Join(dl.audioDir, scheduleFilename))
-	if err != nil {
-		return false, err
-	}
-	newHash, err := md5sum(filepath.Join(dl.audioDir, tempScheduleFilename))
-	if err != nil {
-		return false, err
-	}
-
-	return !bytesEqual(oldHash, newHash), nil
-}
-
-func (dl *Downloader) activateNewSchedule() error {
-	return os.Rename(
-		filepath.Join(dl.audioDir, tempScheduleFilename),
-		filepath.Join(dl.audioDir, scheduleFilename),
-	)
 }
 
 func (dl *Downloader) getFilesForSchedule(api *api.CacophonyAPI, schedule *playlist.Schedule) error {
@@ -320,30 +229,4 @@ func retry(label string, do func() error) error {
 			return fmt.Errorf("could not %s after multiple attempts", label)
 		}
 	}
-}
-
-func md5sum(filename string) ([]byte, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	h := md5.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return nil, err
-	}
-	return h.Sum(nil), nil
-}
-
-func bytesEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

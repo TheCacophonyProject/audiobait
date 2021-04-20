@@ -20,7 +20,18 @@ package playlist
 
 import (
 	"encoding/json"
+	"io/ioutil"
+	"log"
+	"path"
+	"path/filepath"
+	"reflect"
 	"strconv"
+
+	"github.com/TheCacophonyProject/go-api"
+)
+
+const (
+	ScheduleFilename = "schedule.json"
 )
 
 type Schedule struct {
@@ -42,9 +53,65 @@ type Combo struct {
 	Trigger string
 }
 
-func ParseJSONConfigFile(jsonAsString string, schedule *Schedule) error {
-	data := []byte(jsonAsString)
+func SaveScheduleIfNew(audioDir string, newSchedule *Schedule) (new bool, err error) {
+	oldSchedule, err := LoadScheduleFromDisk(audioDir)
+	if err != nil {
+		log.Printf("error loading old schedule so saving new schedule '%v'\n", err)
+		return true, saveScheduleToDisk(audioDir, newSchedule)
+	}
+	if !reflect.DeepEqual(oldSchedule, newSchedule) {
+		log.Println("saving new schedule to disk")
+		return true, saveScheduleToDisk(audioDir, newSchedule)
+	}
+	return false, nil
+}
 
+func saveScheduleToDisk(audioDir string, schedule *Schedule) error {
+	marshedSchedule, err := json.Marshal(schedule)
+	if err != nil {
+		return err
+	}
+	filename := filepath.Join(audioDir, ScheduleFilename)
+	return ioutil.WriteFile(filename, marshedSchedule, 0644)
+}
+
+func GetScheduleFromAPI(api *api.CacophonyAPI) (*Schedule, error) {
+	responseBytes, err := api.GetSchedule()
+	if err != nil {
+		return nil, err
+	}
+	return serverResponseToSchedule(responseBytes)
+}
+
+func serverResponseToSchedule(bytes []byte) (*Schedule, error) {
+	type scheduleServerResponse struct {
+		Schedule Schedule
+	}
+	var sr scheduleServerResponse
+	if err := json.Unmarshal(bytes, &sr); err != nil {
+		return nil, err
+	}
+	return &sr.Schedule, nil
+}
+
+func LoadScheduleFromDisk(audioDir string) (*Schedule, error) {
+	rawData, err := ioutil.ReadFile(path.Join(audioDir, ScheduleFilename))
+	if err != nil {
+		return nil, err
+	}
+	return bytesToSchedule(rawData)
+}
+
+func bytesToSchedule(bytes []byte) (*Schedule, error) {
+	var s Schedule
+	if err := json.Unmarshal(bytes, &s); err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func ParseServerResponse(jsonAsString string, schedule *Schedule) error {
+	data := []byte(jsonAsString)
 	err := json.Unmarshal(data, &schedule)
 	return err
 }

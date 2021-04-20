@@ -26,7 +26,7 @@ func newMockSoundCard(err error) mockSoundCard {
 }
 
 func mockOpenLibrary(filesMap map[int]string, err error) {
-	openLibrary = func(soundDir, scheduleFilename string) (*audiofilelibrary.AudioFileLibrary, error) {
+	openLibrary = func(soundDir string) (*audiofilelibrary.AudioFileLibrary, error) {
 		return &audiofilelibrary.AudioFileLibrary{
 			FilesByID: filesMap,
 		}, err

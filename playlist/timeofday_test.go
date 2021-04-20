@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -31,26 +32,27 @@ type TestTimeOfDay struct {
 }
 
 func TestParsingValidTimeJson(t *testing.T) {
-	parseJsonTimeAndCheck(t, "2:03", "02:03")
-	parseJsonTimeAndCheck(t, "0:00", "00:00")
-	parseJsonTimeAndCheck(t, "21:55", "21:55")
+	parseJsonTimeAndCheck(t, newTime(2, 3), "02:03")
+	parseJsonTimeAndCheck(t, newTime(2, 3), "2:03")
+	parseJsonTimeAndCheck(t, newTime(0, 0), "00:00")
+	parseJsonTimeAndCheck(t, newTime(21, 55), "21:55")
 	parseJsonShouldFail(t, "25:01")
 	parseJsonShouldFail(t, "20:67")
-
 }
 
-func parseJsonTimeAndCheck(t *testing.T, time string, checktime string) {
-	timeOfDay, err := parseJsonTime(time)
+func newTime(hour, minute int) time.Time {
+	return time.Date(0, 1, 1, hour, minute, 0, 0, &time.Location{})
+}
 
-	if err != nil {
-		t.Errorf("Unexpected error unmarshalling: %s", err)
-	}
-
-	outputTime := fmt.Sprintf("%02d:%02d", timeOfDay.Time.Hour(), timeOfDay.Time.Minute())
-
-	assert.Equal(t, outputTime, checktime)
-
-	fmt.Printf("Unmarshalled as %s\n", outputTime)
+func parseJsonTimeAndCheck(t *testing.T, timeExpected time.Time, timeStr string) {
+	timeOfDay := NewTimeOfDay(timeStr)
+	assert.Equal(t, timeExpected, timeOfDay.Time)
+	marshaledTime, err := json.Marshal(timeOfDay)
+	assert.NoError(t, err)
+	var newTimeOfDay TimeOfDay
+	assert.NoError(t, json.Unmarshal(marshaledTime, &newTimeOfDay))
+	assert.Equal(t, timeOfDay, &newTimeOfDay, "should be the same after marshaled and unmarshaled")
+	assert.Equal(t, timeExpected, newTimeOfDay.Time)
 }
 
 func parseJsonShouldFail(t *testing.T, time string) {

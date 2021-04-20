@@ -125,7 +125,7 @@ func createAudioPath(audioPath string) error {
 }
 
 func createPlayer(audioDirectory string) (*playlist.SchedulePlayer, *playlist.Schedule, error) {
-	schedule, err := loadScheduleFromDisk(audioDirectory)
+	schedule, err := playlist.LoadScheduleFromDisk(audioDirectory)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read schedule from disk: %v", err)
 	}
@@ -144,7 +144,7 @@ func createPlayer(audioDirectory string) (*playlist.SchedulePlayer, *playlist.Sc
 func getScheduleFiles(audioDirectory string, schedule *playlist.Schedule) (map[int]string, error) {
 	referencedFiles := schedule.GetReferencedSounds()
 
-	audioLibrary, err := audiofilelibrary.OpenLibrary(audioDirectory, scheduleFilename)
+	audioLibrary, err := audiofilelibrary.OpenLibrary(audioDirectory)
 	if err != nil {
 		return nil, fmt.Errorf("error creating audio library: %v", err)
 	}

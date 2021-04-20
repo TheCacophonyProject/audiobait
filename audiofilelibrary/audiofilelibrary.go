@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/TheCacophonyProject/audiobait/playlist"
 )
 
 // AudioFileLibrary is a structure to hold info on the files in the audio directory.
@@ -54,7 +56,7 @@ func extractIDFromFileName(fileName string) (int, error) {
 }
 
 // OpenLibrary reads the audio directory.  And constructs a map of file IDs to file names.
-func OpenLibrary(soundsDirectory string, scheduleFilename string) (*AudioFileLibrary, error) {
+func OpenLibrary(soundsDirectory string) (*AudioFileLibrary, error) {
 
 	library := &AudioFileLibrary{
 		soundsDirectory: soundsDirectory,
@@ -69,7 +71,7 @@ func OpenLibrary(soundsDirectory string, scheduleFilename string) (*AudioFileLib
 	// Get IDs from the filenames.
 	for _, file := range files {
 		fileID, err := extractIDFromFileName(file.Name())
-		if file.Name() == scheduleFilename {
+		if file.Name() == playlist.ScheduleFilename {
 			// This is the schedule file, just ignore it here.
 			continue
 		}
