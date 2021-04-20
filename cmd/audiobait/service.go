@@ -81,6 +81,16 @@ func (s service) PlayFromId(fileId, volume, priority int, eventRaw string) (bool
 	return played, nil
 }
 
+func (s service) PlayTestSound(volume int) *dbus.Error {
+	mu.Lock()
+	defer mu.Unlock()
+	err := s.player.PlayTestSound(volume)
+	if err != nil {
+		return dbusErr(err)
+	}
+	return nil
+}
+
 func dbusErr(err error) *dbus.Error {
 	if err == nil {
 		return nil

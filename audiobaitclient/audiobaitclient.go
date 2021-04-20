@@ -60,3 +60,8 @@ func PlayFromId(audioFileId, volume, priority int, event *eventclient.Event) (pl
 	}
 	return played, nil
 }
+
+func PlayTestSound(volume int) error {
+	_, err := dbusCall("PlayTestSound", volume)
+	return err
+}

@@ -28,6 +28,10 @@ import (
 	"github.com/TheCacophonyProject/event-reporter/eventclient"
 )
 
+const (
+	testSound = "/var/lib/audiobait/testSound.wav"
+)
+
 type player struct {
 	soundCard SoundCardPlayer
 	soundDir  string
@@ -68,6 +72,10 @@ func (p *player) PlayFromId(fileId, volume, priority int, event *eventclient.Eve
 		return true, saveEvent(*event)
 	}
 	return true, nil
+}
+
+func (p *player) PlayTestSound(volume int) error {
+	return p.soundCard.Play(testSound, volume)
 }
 
 type SoundCardPlayer interface {
