@@ -67,8 +67,10 @@ func (p *player) PlayFromId(fileId, volume, priority int, event *eventclient.Eve
 		event.Details["fileId"] = fileId
 		event.Details["volume"] = volume
 		event.Details["priority"] = priority
+		log.Println("finished playing. saving event")
 		return true, saveEvent(*event)
 	}
+	log.Println("finished playing")
 	return true, nil
 }
 

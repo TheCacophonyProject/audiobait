@@ -63,6 +63,7 @@ func SaveScheduleIfNew(audioDir string, newSchedule *Schedule) (new bool, err er
 		log.Println("saving new schedule to disk")
 		return true, saveScheduleToDisk(audioDir, newSchedule)
 	}
+	log.Println("no change in schedule")
 	return false, nil
 }
 
