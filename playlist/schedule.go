@@ -110,12 +110,6 @@ func bytesToSchedule(bytes []byte) (*Schedule, error) {
 	return &s, nil
 }
 
-func ParseServerResponse(jsonAsString string, schedule *Schedule) error {
-	data := []byte(jsonAsString)
-	err := json.Unmarshal(data, &schedule)
-	return err
-}
-
 // GetReferencedSounds finds the sound file ids that required for playing this schedule.
 func (schedule *Schedule) GetReferencedSounds() []int {
 	sounds := make(map[string]bool)

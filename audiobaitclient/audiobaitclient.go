@@ -39,8 +39,14 @@ var dbusCall = func(method string, params ...interface{}) ([]interface{}, error)
 
 var ErrorParsingOutput = errors.New("error with parsing dbus output")
 
+// PlayFromId lets you make a request to audiobait to play an audio file.
+// audioFileId: ID of the audio file. Audio files available and there IDs can be found using audiofilelibrary.
+// volume: Volume to play the sound at from 1 to 10. Values over 10 can be used but the quality might decrease.
+// priority: //TODO
+// event: Event that will get logged when played. The audioFileID, volume, priority, and time will automatically get added to the event.
+//        If left null no event will be logged.
 func PlayFromId(audioFileId, volume, priority int, event *eventclient.Event) (played bool, err error) {
-	eventRaw := []byte{}
+	var eventRaw []byte
 	if event != nil {
 		eventRaw, err = json.Marshal(event)
 		if err != nil {

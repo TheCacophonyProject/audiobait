@@ -15,8 +15,8 @@ type mockSoundCard struct {
 	err error
 }
 
-func (fsc mockSoundCard) Play(audioFileName string, volume int) error {
-	return fsc.err
+func (msc mockSoundCard) Play(audioFileName string, volume int) error {
+	return msc.err
 }
 
 func newMockSoundCard(err error) mockSoundCard {

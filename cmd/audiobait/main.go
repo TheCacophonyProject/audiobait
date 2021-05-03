@@ -93,7 +93,7 @@ func runMain() error {
 	var playTime <-chan time.Time
 	for {
 		log.Print("loading schedule from disk")
-		playlist, schedule, err := createPlayer(conf.Dir) //TODO add trigger output
+		schedulePlayer, schedule, err := createPlayer(conf.Dir)
 		if err != nil {
 			log.Printf("error creating player: %v (will wait for schedule update)", err)
 			playTime = nil
@@ -101,7 +101,7 @@ func runMain() error {
 			log.Print("No schedule defined - waiting for schedule update")
 			playTime = nil
 		} else {
-			playIn := playlist.TimeUntilNextCombo(*schedule)
+			playIn := schedulePlayer.TimeUntilNextCombo(*schedule)
 			log.Printf("waiting %s for schedule to start", playIn)
 			playTime = time.After(playIn)
 		}
@@ -111,7 +111,7 @@ func runMain() error {
 			log.Print("new schedule - reloading")
 		case <-playTime:
 			log.Printf("Playing todays audiobait schedule...")
-			playlist.PlayTodaysSchedule(*schedule)
+			schedulePlayer.PlayTodaysSchedule(*schedule)
 		}
 	}
 }

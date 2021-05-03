@@ -67,8 +67,6 @@ func (p *player) PlayFromId(fileId, volume, priority int, event *eventclient.Eve
 		event.Details["fileId"] = fileId
 		event.Details["volume"] = volume
 		event.Details["priority"] = priority
-		log.Println("saving audio event")
-		log.Println(event)
 		return true, saveEvent(*event)
 	}
 	return true, nil

@@ -27,6 +27,7 @@ import (
 	"github.com/TheCacophonyProject/window"
 )
 
+// Can be mocked for testing
 var audiobaitclientPlay = audiobaitclient.PlayFromId
 
 type Player struct{}
