@@ -9,7 +9,6 @@ require (
 	github.com/TheCacophonyProject/modemd v0.0.0-20190708011609-1940f5b6677b
 	github.com/TheCacophonyProject/window v0.0.0-20190821235241-ab92c2ee24b6
 	github.com/alexflint/go-arg v1.1.0
-	github.com/coreos/etcd v3.3.10+incompatible
 	github.com/godbus/dbus v4.1.0+incompatible
 	github.com/stretchr/testify v1.4.0
 	golang.org/x/sys v0.0.0-20190912141932-bc967efca4b8 // indirect
