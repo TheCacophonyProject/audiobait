@@ -27,8 +27,8 @@ import (
 
 	arg "github.com/alexflint/go-arg"
 
-	"github.com/TheCacophonyProject/audiobait/audiofilelibrary"
-	"github.com/TheCacophonyProject/audiobait/playlist"
+	"github.com/TheCacophonyProject/audiobait/v3/audiofilelibrary"
+	"github.com/TheCacophonyProject/audiobait/v3/playlist"
 	goconfig "github.com/TheCacophonyProject/go-config"
 )
 

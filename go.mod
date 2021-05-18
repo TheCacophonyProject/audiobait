@@ -1,4 +1,4 @@
-module github.com/TheCacophonyProject/audiobait
+module github.com/TheCacophonyProject/audiobait/v3
 
 go 1.12
 
