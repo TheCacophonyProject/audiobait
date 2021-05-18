@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package playlist
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -114,5 +115,9 @@ func TestGetReferenceSounds(t *testing.T) {
 		},
 		AllSounds: []int{1, 2, 3, 212, 215},
 	}
-	assert.Equal(t, []int{212, 215}, scheduleNoRandom.GetReferencedSounds())
+	expected := []int{215, 212}
+	actual := scheduleNoRandom.GetReferencedSounds()
+	sort.Ints(expected)
+	sort.Ints(actual)
+	assert.Equal(t, expected, actual)
 }
