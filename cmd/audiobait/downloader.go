@@ -27,8 +27,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/TheCacophonyProject/audiobait/audiofilelibrary"
-	"github.com/TheCacophonyProject/audiobait/playlist"
+	"github.com/TheCacophonyProject/audiobait/v3/audiofilelibrary"
+	"github.com/TheCacophonyProject/audiobait/v3/playlist"
 	"github.com/TheCacophonyProject/go-api"
 	"github.com/TheCacophonyProject/modemd/connrequester"
 )

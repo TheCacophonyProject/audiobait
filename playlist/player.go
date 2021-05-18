@@ -22,7 +22,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/TheCacophonyProject/audiobait/audiobaitclient"
+	"github.com/TheCacophonyProject/audiobait/v3/audiobaitclient"
 	"github.com/TheCacophonyProject/event-reporter/eventclient"
 	"github.com/TheCacophonyProject/window"
 )

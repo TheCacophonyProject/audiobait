@@ -26,7 +26,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/TheCacophonyProject/audiobait/playlist"
+	"github.com/TheCacophonyProject/audiobait/v3/playlist"
 )
 
 // AudioFileLibrary is a structure to hold info on the files in the audio directory.
