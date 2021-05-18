@@ -14,7 +14,7 @@ builds:
   - arm
   goarm:
   - "7"
-  main: .
+  main: ./cmd/audiobait
   ldflags: -s -w -X main.version={{.Version}}
   binary: audiobait
 
@@ -35,5 +35,7 @@ nfpms:
   bindir: /usr/bin
   files:
     "_release/audiobait.service": "/etc/systemd/system/audiobait.service"
+    "_release/org.cacophony.Audiobait.conf": "/etc/dbus-1/system.d/org.cacophony.Audiobait.conf"
+    "_release/testSound.wav": "/var/lib/audiobait/testSound.wav"
   scripts:
       postinstall: "_release/postinstall.sh"

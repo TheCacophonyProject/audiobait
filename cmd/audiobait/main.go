@@ -19,7 +19,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -32,8 +31,6 @@ import (
 	"github.com/TheCacophonyProject/audiobait/playlist"
 	goconfig "github.com/TheCacophonyProject/go-config"
 )
-
-var errTryLater = errors.New("error getting schedule, try again later")
 
 // version is populated at link time via goreleaser
 var version = "No version provided"
@@ -75,6 +72,14 @@ func runMain() error {
 		return err
 	}
 
+	if err := startService(player{
+		soundCard: NewSoundCardPlayer(conf.Card, conf.VolumeControl),
+		soundDir:  conf.Dir,
+	}); err != nil {
+		return err
+	}
+	log.Println("started audiobait dbus servie")
+
 	// Make sure the path to where we keep the schedule and audio files is OK.
 	if err := createAudioPath(conf.Dir); err != nil {
 		// This is a pretty fundamental error.  We can't do anything without this.
@@ -85,12 +90,10 @@ func runMain() error {
 	// Start checking for new schedules
 	dl := NewDownloader(conf.Dir)
 
-	soundCard := NewSoundCardPlayer(conf.Card, conf.VolumeControl)
-
 	var playTime <-chan time.Time
 	for {
 		log.Print("loading schedule from disk")
-		player, schedule, err := createPlayer(soundCard, conf.Dir)
+		schedulePlayer, schedule, err := createPlayer(conf.Dir)
 		if err != nil {
 			log.Printf("error creating player: %v (will wait for schedule update)", err)
 			playTime = nil
@@ -98,7 +101,7 @@ func runMain() error {
 			log.Print("No schedule defined - waiting for schedule update")
 			playTime = nil
 		} else {
-			playIn := player.TimeUntilNextCombo(*schedule)
+			playIn := schedulePlayer.TimeUntilNextCombo(*schedule)
 			log.Printf("waiting %s for schedule to start", playIn)
 			playTime = time.After(playIn)
 		}
@@ -108,7 +111,7 @@ func runMain() error {
 			log.Print("new schedule - reloading")
 		case <-playTime:
 			log.Printf("Playing todays audiobait schedule...")
-			player.PlayTodaysSchedule(*schedule)
+			schedulePlayer.PlayTodaysSchedule(*schedule)
 		}
 	}
 }
@@ -116,23 +119,23 @@ func runMain() error {
 func createAudioPath(audioPath string) error {
 	err := os.MkdirAll(audioPath, 0755)
 	if err != nil {
-		return fmt.Errorf("Could not create audio directory: %v", err)
+		return fmt.Errorf("could not create audio directory: %v", err)
 	}
 	return nil
 }
 
-func createPlayer(soundCard SoundCardPlayer, audioDirectory string) (*playlist.SchedulePlayer, *playlist.Schedule, error) {
-	schedule, err := loadScheduleFromDisk(audioDirectory)
+func createPlayer(audioDirectory string) (*playlist.SchedulePlayer, *playlist.Schedule, error) {
+	schedule, err := playlist.LoadScheduleFromDisk(audioDirectory)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to read schedule from disk: %v", err)
+		return nil, nil, fmt.Errorf("failed to read schedule from disk: %v", err)
 	}
 
 	files, err := getScheduleFiles(audioDirectory, schedule)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Problem collating files for schedule: %v", err)
+		return nil, nil, fmt.Errorf("problem collating files for schedule: %v", err)
 	}
 
-	player := playlist.NewPlayer(soundCard, files, audioDirectory)
+	player := playlist.NewPlayer(files, audioDirectory)
 	player.SetRecorder(AudioBaitEventRecorder{})
 
 	return player, schedule, nil
@@ -141,7 +144,7 @@ func createPlayer(soundCard SoundCardPlayer, audioDirectory string) (*playlist.S
 func getScheduleFiles(audioDirectory string, schedule *playlist.Schedule) (map[int]string, error) {
 	referencedFiles := schedule.GetReferencedSounds()
 
-	audioLibrary, err := audiofilelibrary.OpenLibrary(audioDirectory, scheduleFilename)
+	audioLibrary, err := audiofilelibrary.OpenLibrary(audioDirectory)
 	if err != nil {
 		return nil, fmt.Errorf("error creating audio library: %v", err)
 	}

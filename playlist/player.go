@@ -20,17 +20,17 @@ package playlist
 
 import (
 	"log"
-	"path/filepath"
 	"time"
 
+	"github.com/TheCacophonyProject/audiobait/audiobaitclient"
+	"github.com/TheCacophonyProject/event-reporter/eventclient"
 	"github.com/TheCacophonyProject/window"
 )
 
-// AudioDevice models the device playing the audio.
-type AudioDevice interface {
-	// Play plays a given audio file at a specified volume.
-	Play(audioFileName string, volume int) error
-}
+// Can be mocked for testing
+var audiobaitclientPlay = audiobaitclient.PlayFromId
+
+type Player struct{}
 
 // Clock models a clock.   That has been abstracted for unit testing.
 type Clock interface {
@@ -42,7 +42,7 @@ type Clock interface {
 
 // SoundPlayedRecorder gets a notification when a sound has been played.
 type SoundPlayedRecorder interface {
-	// OnBaitPlayed is called when the device believes audobait has been played
+	// OnBaitPlayed is called when the device believes audiobait has been played
 	OnAudioBaitPlayed(ts time.Time, fileId int, volume int)
 }
 
@@ -59,7 +59,6 @@ func (t *ActualClock) Wait(duration time.Duration) {
 
 // SchedulePlayer takes a schedule and a bunch of audio files and plays them at the times specified on the schedule.
 type SchedulePlayer struct {
-	player   AudioDevice
 	time     Clock
 	recorder SoundPlayedRecorder
 	// allSounds is a map of audio file ID to name of audio file on disk
@@ -68,16 +67,16 @@ type SchedulePlayer struct {
 }
 
 // NewPlayer creates a new schedule player.
-func NewPlayer(audioDevice AudioDevice, allSoundsMap map[int]string, filesDirectory string) *SchedulePlayer {
-	return newSchedulePlayerWithClock(audioDevice, new(ActualClock), allSoundsMap, filesDirectory)
+func NewPlayer(allSoundsMap map[int]string, filesDirectory string) *SchedulePlayer {
+	return newSchedulePlayerWithClock(new(ActualClock), allSoundsMap, filesDirectory)
 }
 
 // newSchedulePlayerWithClock creates a new schedule player.  Should only be used for unit testing - use NewPlayer otherwise.
-func newSchedulePlayerWithClock(audioDevice AudioDevice,
+func newSchedulePlayerWithClock(
 	clock Clock,
 	allSoundsMap map[int]string,
 	filesDirectory string) *SchedulePlayer {
-	return &SchedulePlayer{player: audioDevice, time: clock, allSounds: allSoundsMap, filesDir: filesDirectory}
+	return &SchedulePlayer{time: clock, allSounds: allSoundsMap, filesDir: filesDirectory}
 }
 
 // nextDayStart calculates when the next audiobait day starts (typically around midday).
@@ -248,12 +247,16 @@ func (sp SchedulePlayer) playSounds(combo Combo, chooser *SoundChooser) {
 		sp.time.Wait(time.Duration(combo.Waits[count]) * time.Second)
 		file_id, soundFilename := chooser.ChooseSound(combo.Sounds[count])
 		if file_id > 0 {
-			soundFilePath := filepath.Join(sp.filesDir, soundFilename)
 			volume := combo.Volumes[count]
 			now := sp.time.Now()
-			log.Printf("Playing sound %s at volume level %d", soundFilePath, volume)
-			if err := sp.player.Play(soundFilePath, volume); err != nil {
+			log.Printf("Playing sound %s at volume level %d", soundFilename, volume)
+			event := &eventclient.Event{
+				Type: "audioBait",
+			}
+			if played, err := audiobaitclientPlay(file_id, volume, 1, event); err != nil {
 				log.Printf("Play failed: %v", err)
+			} else if !played {
+				log.Println("audiobait was not played because it's priority wasn't high enough")
 			} else if sp.recorder != nil {
 				sp.recorder.OnAudioBaitPlayed(now, file_id, volume)
 			}

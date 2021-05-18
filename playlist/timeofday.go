@@ -18,7 +18,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package playlist
 
-import "time"
+import (
+	"time"
+)
 
 type TimeOfDay struct {
 	time.Time
@@ -33,12 +35,16 @@ func (timeOfDay *TimeOfDay) UnmarshalJSON(bValue []byte) (err error) {
 		timeOfDay.Time = time.Time{}
 		return
 	}
-	timeOfDay.Time, err = time.Parse(timeLayoutJson, sValue)
+	timeOfDay.Time, err = time.ParseInLocation(timeLayoutJson, sValue, &time.Location{})
 	return
 }
 
+func (t *TimeOfDay) MarshalJSON() ([]byte, error) {
+	return []byte("\"" + t.Time.Format(timeLayout) + "\""), nil
+}
+
 func NewTimeOfDay(timeOfDayString string) *TimeOfDay {
-	t, err := time.Parse(timeLayout, timeOfDayString)
+	t, err := time.ParseInLocation(timeLayout, timeOfDayString, &time.Location{})
 	if err != nil {
 		t = time.Time{}
 	}

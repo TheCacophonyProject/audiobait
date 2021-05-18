@@ -25,8 +25,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TheCacophonyProject/event-reporter/eventclient"
 	"github.com/stretchr/testify/assert"
 )
+
+var fakePlayerSuccess = true
+var fakePlayerError error = nil
 
 var soundFiles = map[int]string{
 	1: "squeal",
@@ -35,17 +39,8 @@ var soundFiles = map[int]string{
 }
 
 type TestClockAndAudioDevice struct {
-	NowTime     time.Time
-	PlayTimes   []string
-	ErrorOnPlay bool
-}
-
-func (p *TestClockAndAudioDevice) Play(audioFileName string, _ int) error {
-	if p.ErrorOnPlay {
-		fmt.Println("Did not play sound")
-		return errors.New("Pretending to not play successfully")
-	}
-	return nil
+	NowTime   time.Time
+	PlayTimes []string
 }
 
 func (t *TestClockAndAudioDevice) Now() time.Time {
@@ -73,11 +68,14 @@ func registerPlaySound(playTime, audioFileName string) string {
 }
 
 func createPlayer(startTime string) (*SchedulePlayer, *TestClockAndAudioDevice) {
+	audiobaitclientPlay =
+		func(int, int, int, *eventclient.Event) (bool, error) {
+			return fakePlayerSuccess, fakePlayerError
+		}
 	testPlayerAndTimer := new(TestClockAndAudioDevice)
 	testPlayerAndTimer.PlayTimes = make([]string, 0, 10)
 	testPlayerAndTimer.NowTime = NewTimeOfDay(startTime).Time
-	testPlayerAndTimer.ErrorOnPlay = false
-	scheduleplayer := newSchedulePlayerWithClock(testPlayerAndTimer, testPlayerAndTimer, soundFiles, "")
+	scheduleplayer := newSchedulePlayerWithClock(testPlayerAndTimer, soundFiles, "")
 	scheduleplayer.SetRecorder(testPlayerAndTimer)
 	return scheduleplayer, testPlayerAndTimer
 }
@@ -93,7 +91,7 @@ func TestPlayingComboStartDuring(t *testing.T) {
 		registerPlaySound("13:01:00", "beep"),
 	}
 
-	assert.Equal(t, testRecorder.PlayTimes, expectedPlayTimes)
+	assert.Equal(t, expectedPlayTimes, testRecorder.PlayTimes)
 }
 
 func TestPlayingComboStartBefore(t *testing.T) {
@@ -253,12 +251,24 @@ func TestRecorderIsNotCalledWhenSoundIsNotPlayed(t *testing.T) {
 	combo := createCombo("12:01", "13:03", 30, "howl")
 
 	schedulePlayer, testRecorder := createPlayer("12:10")
-	testRecorder.ErrorOnPlay = true
+	fakePlayerSuccess = false
 	schedulePlayer.playCombo(combo)
 
 	expectedPlayedTimes := []string{}
 
-	assert.Equal(t, testRecorder.PlayTimes, expectedPlayedTimes)
+	assert.Equal(t, expectedPlayedTimes, testRecorder.PlayTimes)
+}
+
+func TestRecorderIsNotCalledWhenErrorWithPlayingSound(t *testing.T) {
+	combo := createCombo("12:01", "13:03", 30, "howl")
+
+	schedulePlayer, testRecorder := createPlayer("12:10")
+	fakePlayerError = errors.New("some error with playing audio")
+	schedulePlayer.playCombo(combo)
+
+	expectedPlayedTimes := []string{}
+
+	assert.Equal(t, expectedPlayedTimes, testRecorder.PlayTimes)
 }
 
 func createCombo(timeStart, timeEnd string, everyMinutes int, soundName string) Combo {
