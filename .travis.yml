@@ -5,7 +5,7 @@ go:
 
 script:
   - go mod tidy
-  - git diff --exit-code --quiet || (echo "Please run 'go mod tidy' to clean up the 'go.mod' and 'go.sum' files."; false)
+  - git diff --exit-code || (echo "Please run 'go mod tidy' to clean up the 'go.mod' and 'go.sum' files. Your go version should match the one used with travis."; false)
   - go vet ./...
   - go test ./...
   - curl -sL https://git.io/goreleaser | bash -s check
