@@ -11,6 +11,6 @@ require (
 	github.com/alexflint/go-arg v1.1.0
 	github.com/godbus/dbus v4.1.0+incompatible
 	github.com/stretchr/testify v1.4.0
-	golang.org/x/sys v0.0.0-20190912141932-bc967efca4b8 // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 )
